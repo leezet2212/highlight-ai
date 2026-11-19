@@ -39,6 +39,32 @@ Tải video highlight (chưa có tiếng bình luận) lên → AI **xem trận 
 
 Sau đó mở trình duyệt tại **http://localhost:8000**.
 
+## Đưa lên web (Hugging Face Spaces – miễn phí)
+
+App cần Python + ffmpeg nên **không chạy được trên GitHub Pages**. Hugging Face Spaces miễn phí, có 2 CPU và 16 GB RAM, đủ để dựng video. Repo đã có sẵn `Dockerfile` và GitHub Action tự đẩy code sang Space.
+
+**Bước 1. Tạo Space**
+1. Đăng ký tài khoản tại <https://huggingface.co/join>.
+2. Vào <https://huggingface.co/new-space>, đặt tên `highlight-ai`, chọn **Docker → Blank**, để **Public**, rồi bấm *Create Space*.
+3. Trong Space, vào **Settings → Variables and secrets** và thêm các **Secret**:
+   - `GEMINI_API_KEY`
+   - `ELEVENLABS_API_KEY` (không bắt buộc)
+   - `APP_PASSWORD`: mật khẩu vào trang. **Bắt buộc nên có**, nếu không ai có link cũng dùng hết lượt miễn phí của bạn.
+
+**Bước 2. Cho GitHub tự đẩy code sang Space**
+1. Tạo token tại <https://huggingface.co/settings/tokens>, chọn quyền **Write**.
+2. Trong repo GitHub, vào **Settings → Secrets and variables → Actions**:
+   - Tab *Secrets*, thêm `HF_TOKEN` = token vừa tạo.
+   - Tab *Variables*, thêm `HF_SPACE` = `ten-hugging-face-cua-ban/highlight-ai`.
+3. Đẩy code lên nhánh `master` (hoặc vào tab **Actions → Deploy to Hugging Face Space → Run workflow**).
+4. Đợi Space build xong, khoảng 3–5 phút, rồi mở `https://huggingface.co/spaces/ten-cua-ban/highlight-ai`. Trình duyệt sẽ hỏi tên đăng nhập (gõ gì cũng được) và mật khẩu (`APP_PASSWORD`).
+
+Từ đó, mỗi lần sửa code và đẩy lên `master`, web sẽ tự cập nhật.
+
+**Lưu ý khi chạy trên web:** Space miễn phí sẽ "ngủ" nếu 48 giờ không ai dùng (mở lại sẽ tự chạy, mất khoảng 1 phút). Video trên máy chủ bị xoá khi Space khởi động lại và tự xoá sau 24 giờ (`JOB_TTL_HOURS`), nên nhớ tải video về ngay. Mỗi lần chỉ xuất 1 video, người sau sẽ tự xếp hàng chờ.
+
+Dịch vụ khác (Render, Railway, Fly.io, VPS) cũng chạy được bằng `Dockerfile` này. Ứng dụng đọc cổng mạng từ biến `PORT`, và cần ít nhất 1–2 GB RAM.
+
 ## Cách dùng
 
 1. Kéo thả video highlight vào trang.

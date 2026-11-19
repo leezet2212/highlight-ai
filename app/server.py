@@ -1,17 +1,20 @@
 """FastAPI web app: upload → AI script → edit → render → download."""
 from __future__ import annotations
 
+import base64
 import json
 import os
+import secrets
 import shutil
 import threading
+import time
 import traceback
 import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -21,13 +24,57 @@ load_dotenv(ROOT / ".env")
 from . import media, render as renderer, script_ai, tts  # noqa: E402
 from .styles import STYLES  # noqa: E402
 
-DATA = ROOT / "data" / "jobs"
+DATA = Path(os.getenv("DATA_DIR") or ROOT / "data") / "jobs"
 DATA.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "500"))
+JOB_TTL_HOURS = float(os.getenv("JOB_TTL_HOURS", "24"))
+APP_PASSWORD = os.getenv("APP_PASSWORD", "").strip()
+# ffmpeg is CPU/RAM heavy: on a small server render one video at a time.
+RENDER_SLOTS = threading.Semaphore(max(1, int(os.getenv("MAX_CONCURRENT_RENDERS", "1"))))
 
 app = FastAPI(title="Highlight AI – Bình luận Liên Quân")
 JOBS: dict[str, dict] = {}
 LOCK = threading.Lock()
+
+
+@app.middleware("http")
+async def password_gate(request: Request, call_next):
+    """Optional HTTP Basic auth so a public deployment doesn't burn your API quota.
+
+    Any username works; the password must equal APP_PASSWORD.
+    """
+    if not APP_PASSWORD or request.url.path == "/healthz":
+        return await call_next(request)
+    header = request.headers.get("authorization", "")
+    if header.lower().startswith("basic "):
+        try:
+            _, _, pw = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+            if secrets.compare_digest(pw.encode(), APP_PASSWORD.encode()):
+                return await call_next(request)
+        except Exception:
+            pass
+    return Response("Cần mật khẩu để dùng Highlight AI.", status_code=401,
+                    headers={"WWW-Authenticate": 'Basic realm="Highlight AI", charset="UTF-8"'},
+                    media_type="text/plain; charset=utf-8")
+
+
+@app.get("/healthz")
+def healthz():
+    return {"ok": True}
+
+
+def cleanup_old_jobs() -> None:
+    """Delete uploads/results older than JOB_TTL_HOURS so the disk doesn't fill up."""
+    if JOB_TTL_HOURS <= 0:
+        return
+    cutoff = time.time() - JOB_TTL_HOURS * 3600
+    for d in DATA.iterdir():
+        try:
+            if d.is_dir() and d.stat().st_mtime < cutoff and JOBS.get(d.name, {}).get("status") != "running":
+                shutil.rmtree(d, ignore_errors=True)
+                JOBS.pop(d.name, None)
+        except FileNotFoundError:
+            pass
 
 
 def job_dir(job_id: str) -> Path:
@@ -75,6 +122,7 @@ def restore_jobs() -> None:
                 pass
 
 
+cleanup_old_jobs()
 restore_jobs()
 
 
@@ -97,6 +145,7 @@ def voices():
 
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
+    cleanup_old_jobs()
     job_id = uuid.uuid4().hex[:12]
     d = DATA / job_id
     d.mkdir(parents=True)
@@ -181,8 +230,14 @@ def make_video(job_id: str, req: RenderReq):
         script = dict(job.get("script") or {})
         script["segments"] = segs
         update(job_id, script=script, result=None)
-        result = renderer.render(d, d / job["source"], job["info_obj"], segs,
-                                 req.model_dump(), progress)
+        if not RENDER_SLOTS.acquire(blocking=False):
+            progress("Đang có video khác được xuất, đang chờ tới lượt...")
+            RENDER_SLOTS.acquire()
+        try:
+            result = renderer.render(d, d / job["source"], job["info_obj"], segs,
+                                     req.model_dump(), progress)
+        finally:
+            RENDER_SLOTS.release()
         result["aspect"] = req.aspect
         result["version"] = uuid.uuid4().hex[:6]
         update(job_id, result=result)
