@@ -56,10 +56,10 @@ App cần Python + ffmpeg nên **không chạy được trên GitHub Pages**. Hu
 2. Trong repo GitHub, vào **Settings → Secrets and variables → Actions**:
    - Tab *Secrets*, thêm `HF_TOKEN` = token vừa tạo.
    - Tab *Variables*, thêm `HF_SPACE` = `ten-hugging-face-cua-ban/highlight-ai`.
-3. Đẩy code lên nhánh `master` (hoặc vào tab **Actions → Deploy to Hugging Face Space → Run workflow**).
+3. Đẩy code lên nhánh `main` (hoặc vào tab **Actions → Deploy to Hugging Face Space → Run workflow**).
 4. Đợi Space build xong, khoảng 3–5 phút, rồi mở `https://huggingface.co/spaces/ten-cua-ban/highlight-ai`. Trình duyệt sẽ hỏi tên đăng nhập (gõ gì cũng được) và mật khẩu (`APP_PASSWORD`).
 
-Từ đó, mỗi lần sửa code và đẩy lên `master`, web sẽ tự cập nhật.
+Từ đó, mỗi lần sửa code và đẩy lên `main`, web sẽ tự cập nhật.
 
 **Lưu ý khi chạy trên web:** Space miễn phí sẽ "ngủ" nếu 48 giờ không ai dùng (mở lại sẽ tự chạy, mất khoảng 1 phút). Video trên máy chủ bị xoá khi Space khởi động lại và tự xoá sau 24 giờ (`JOB_TTL_HOURS`), nên nhớ tải video về ngay. Mỗi lần chỉ xuất 1 video, người sau sẽ tự xếp hàng chờ.
 
