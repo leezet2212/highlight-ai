@@ -41,25 +41,32 @@ Sau đó mở trình duyệt tại **http://localhost:8000**.
 
 ## Đưa lên web (Hugging Face Spaces – miễn phí)
 
-App cần Python + ffmpeg nên **không chạy được trên GitHub Pages**. Hugging Face Spaces miễn phí, có 2 CPU và 16 GB RAM, đủ để dựng video. Repo đã có sẵn `Dockerfile` và GitHub Action tự đẩy code sang Space.
+App cần Python + ffmpeg nên **không chạy được trên GitHub Pages**. Hugging Face Spaces miễn phí, có 2 CPU và 16 GB RAM, đủ để dựng video. Bạn **chỉ nhập key ở GitHub**. GitHub Action sẽ tự tạo Space, chép key sang Space và đưa code lên.
 
-**Bước 1. Tạo Space**
+**Bước 1. Tạo token Hugging Face**
 1. Đăng ký tài khoản tại <https://huggingface.co/join>.
-2. Vào <https://huggingface.co/new-space>, đặt tên `highlight-ai`, chọn **Docker → Blank**, để **Public**, rồi bấm *Create Space*.
-3. Trong Space, vào **Settings → Variables and secrets** và thêm các **Secret**:
-   - `GEMINI_API_KEY`
-   - `ELEVENLABS_API_KEY` (không bắt buộc)
-   - `APP_PASSWORD`: mật khẩu vào trang. **Bắt buộc nên có**, nếu không ai có link cũng dùng hết lượt miễn phí của bạn.
+2. Vào <https://huggingface.co/settings/tokens>, bấm **Create new token**, chọn loại **Write** và copy token (dạng `hf_...`).
 
-**Bước 2. Cho GitHub tự đẩy code sang Space**
-1. Tạo token tại <https://huggingface.co/settings/tokens>, chọn quyền **Write**.
-2. Trong repo GitHub, vào **Settings → Secrets and variables → Actions**:
-   - Tab *Secrets*, thêm `HF_TOKEN` = token vừa tạo.
-   - Tab *Variables*, thêm `HF_SPACE` = `ten-hugging-face-cua-ban/highlight-ai`.
-3. Đẩy code lên nhánh `main` (hoặc vào tab **Actions → Deploy to Hugging Face Space → Run workflow**).
-4. Đợi Space build xong, khoảng 3–5 phút, rồi mở `https://huggingface.co/spaces/ten-cua-ban/highlight-ai`. Trình duyệt sẽ hỏi tên đăng nhập (gõ gì cũng được) và mật khẩu (`APP_PASSWORD`).
+**Bước 2. Nhập key vào GitHub** (một lần duy nhất)
 
-Từ đó, mỗi lần sửa code và đẩy lên `main`, web sẽ tự cập nhật.
+Vào repo này trên GitHub, chọn **Settings → Secrets and variables → Actions → New repository secret**, rồi thêm lần lượt:
+
+| Name | Secret |
+|---|---|
+| `HF_TOKEN` | token Hugging Face vừa tạo |
+| `GEMINI_API_KEY` | key Gemini (<https://aistudio.google.com/apikey>) |
+| `APP_PASSWORD` | mật khẩu vào trang web, do bạn tự đặt |
+| `ELEVENLABS_API_KEY` | key ElevenLabs. Không bắt buộc, có thể bỏ qua |
+
+**Bước 3. Chạy**
+
+Vào tab **Actions → Deploy to Hugging Face Space → Run workflow**. Đợi khoảng 1 phút cho Action xong (dấu ✅), rồi thêm 3–5 phút để Space build. Sau đó mở:
+
+`https://huggingface.co/spaces/ten-tai-khoan-hugging-face/highlight-ai`
+
+Trình duyệt sẽ hỏi tên đăng nhập (gõ gì cũng được) và mật khẩu (`APP_PASSWORD`).
+
+Từ đó, mỗi lần đẩy code lên `main`, web sẽ tự cập nhật. Muốn đổi key thì sửa secret trên GitHub rồi chạy lại workflow. Muốn đặt tên Space khác thì thêm **Variable** `HF_SPACE` = `ten-tai-khoan/ten-space`.
 
 **Lưu ý khi chạy trên web:** Space miễn phí sẽ "ngủ" nếu 48 giờ không ai dùng (mở lại sẽ tự chạy, mất khoảng 1 phút). Video trên máy chủ bị xoá khi Space khởi động lại và tự xoá sau 24 giờ (`JOB_TTL_HOURS`), nên nhớ tải video về ngay. Mỗi lần chỉ xuất 1 video, người sau sẽ tự xếp hàng chờ.
 

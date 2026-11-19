@@ -19,7 +19,7 @@ python -m uvicorn app.server:app --port 8000 --reload
 
 Người dùng cuối chạy bằng `run.bat` (Windows) / `run.sh` (macOS/Linux) – giữ hai file này đồng bộ khi đổi cách chạy.
 
-**Bản trên web**: `Dockerfile` (cổng `PORT`, mặc định 7860) chạy trên Hugging Face Spaces. `.github/workflows/deploy-hf.yml` đẩy repo sang Space mỗi khi có push lên `main` (cần secret `HF_TOKEN` + variable `HF_SPACE` trên GitHub; header YAML của Space nằm ở `deploy/hf-header.md`). Mọi thứ trên `main` sẽ lên web ngay – kiểm tra kỹ trước khi push. Biến môi trường khi chạy trên web: `APP_PASSWORD` (HTTP Basic auth, `/healthz` không cần mật khẩu), `JOB_TTL_HOURS` (tự xoá job cũ), `MAX_CONCURRENT_RENDERS` (semaphore giới hạn số video xuất cùng lúc), `DATA_DIR`.
+**Bản trên web**: `Dockerfile` (cổng `PORT`, mặc định 7860) chạy trên Hugging Face Spaces. `.github/workflows/deploy-hf.yml` chạy `deploy/deploy_hf.py` mỗi khi có push lên `main`: tự tạo Space (mặc định `<tài-khoản-hf>/highlight-ai`, đổi bằng variable `HF_SPACE`), chép các secret GitHub `GEMINI_API_KEY`/`ELEVENLABS_API_KEY`/`APP_PASSWORD` sang secret của Space, rồi upload các file git đang theo dõi (bỏ `deploy/`, `.github/`, `CLAUDE.md`; header YAML của Space ở `deploy/hf-header.md`). Không có secret `HF_TOKEN` thì bỏ qua. Mọi thứ trên `main` sẽ lên web ngay – kiểm tra kỹ trước khi push. Biến môi trường khi chạy trên web: `APP_PASSWORD` (HTTP Basic auth, `/healthz` không cần mật khẩu), `JOB_TTL_HOURS` (tự xoá job cũ), `MAX_CONCURRENT_RENDERS` (semaphore giới hạn số video xuất cùng lúc), `DATA_DIR`.
 
 Chưa có bộ test tự động. Kiểm tra khi sửa:
 
@@ -43,7 +43,7 @@ app/render.py     Toàn bộ khâu dựng video bằng ffmpeg.
 app/media.py      ffprobe/ffmpeg helpers: probe(), audio_duration(), make_preview(), run().
 static/index.html Giao diện một trang, JS thuần, không build step.
 Dockerfile        Image chạy trên web (Hugging Face Spaces).
-deploy/           Header YAML cho Space; .github/workflows/deploy-hf.yml tự deploy.
+deploy/           deploy_hf.py (tạo Space, chép secret, upload) + hf-header.md; chạy bởi .github/workflows/deploy-hf.yml.
 data/jobs/<id>/   Dữ liệu từng video (gitignored): source.*, preview.mp4, job.json, voice/, voice.wav, subs.ass, output.mp4, output.srt
 ```
 
