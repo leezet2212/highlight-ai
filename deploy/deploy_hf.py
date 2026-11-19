@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from huggingface_hub import HfApi
@@ -30,16 +31,9 @@ def main() -> int:
     api.create_repo(space, repo_type="space", space_sdk="docker", exist_ok=True)
     print(f"Space: {space}")
 
-    for name in SECRETS:
-        value = os.getenv(name, "").strip()
-        if value:
-            api.add_space_secret(space, name, value)
-            print(f"  ✓ đã cập nhật secret {name}")
-        else:
-            print(f"  - không có {name} trên GitHub, giữ nguyên giá trị cũ trên Space (nếu có)")
-    if not os.getenv("APP_PASSWORD", "").strip():
-        print("::warning::Chưa đặt APP_PASSWORD – nếu Space chưa có mật khẩu, ai có link cũng dùng được.")
-
+    # Upload first: the README header (sdk: docker) also converts a Space that
+    # was created by hand as Static/Gradio into a Docker Space. Static Spaces
+    # refuse secrets, so secrets can only be added after this.
     with tempfile.TemporaryDirectory() as tmp:
         archive = subprocess.run(["git", "archive", "HEAD"], cwd=ROOT, check=True, capture_output=True).stdout
         subprocess.run(["tar", "-x", "-C", tmp], input=archive, check=True)
@@ -53,6 +47,26 @@ def main() -> int:
             delete_patterns=["*"],  # remove files that no longer exist in GitHub
             commit_message=f"Deploy {os.getenv('GITHUB_SHA', 'local')[:7]} from GitHub",
         )
+    print("  ✓ đã đưa code lên Space (loại Docker)")
+
+    for name in SECRETS:
+        value = os.getenv(name, "").strip()
+        if not value:
+            print(f"  - không có {name} trên GitHub, giữ nguyên giá trị cũ trên Space (nếu có)")
+            continue
+        for attempt in range(6):  # SDK change may take a few seconds to apply
+            try:
+                api.add_space_secret(space, name, value)
+                print(f"  ✓ đã cập nhật secret {name}")
+                break
+            except Exception as exc:
+                if attempt == 5:
+                    print(f"::error::Không thêm được secret {name} vào Space: {exc}")
+                    return 1
+                time.sleep(5)
+    if not os.getenv("APP_PASSWORD", "").strip():
+        print("::warning::Chưa đặt APP_PASSWORD – nếu Space chưa có mật khẩu, ai có link cũng dùng được.")
+
     print(f"Đã cập nhật: https://huggingface.co/spaces/{space}")
     print("Space đang build (3-5 phút), sau đó mở link trên để dùng.")
     return 0
