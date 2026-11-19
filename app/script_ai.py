@@ -229,11 +229,16 @@ def normalize(data: dict, duration: float) -> dict:
             if start >= duration:
                 break
             end = max(end, start + 0.5)
-        segs.append({
+        seg = {
             "start": round(start, 2),
             "end": round(min(end, duration), 2),
             "event": str(s.get("event", "")).strip(),
             "text": text,
-        })
+        }
+        # Optional per-line voice chosen in the editor.
+        if s.get("provider") and s.get("voice_id"):
+            seg["provider"] = str(s["provider"]).strip()
+            seg["voice_id"] = str(s["voice_id"]).strip()
+        segs.append(seg)
     return {"summary": str(data.get("summary", "")).strip(), "segments": segs,
             "posts": normalize_posts(data.get("posts"))}

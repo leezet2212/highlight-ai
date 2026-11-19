@@ -137,6 +137,17 @@ def write_srt(path: Path, lines: list[dict]) -> None:
 
 # ---------------------------------------------------------------- pipeline
 
+VOICE_PROVIDERS = {"edge", "elevenlabs", "_test"}
+
+
+def line_voice_of(seg: dict, provider: str, voice_id: str) -> tuple[str, str]:
+    """Per-line voice override if the line has a valid one, else the default voice."""
+    p, v = str(seg.get("provider") or "").strip(), str(seg.get("voice_id") or "").strip()
+    if p in VOICE_PROVIDERS and v:
+        return p, v
+    return provider, voice_id
+
+
 def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts: dict,
            on_progress=lambda msg: None) -> dict:
     provider = opts.get("provider", "edge")
@@ -146,6 +157,8 @@ def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts
     game_volume = float(opts.get("game_volume", 0.35))
     voice_volume = float(opts.get("voice_volume", 1.0))
     duck = bool(opts.get("duck", True))
+    # "Tắt hẳn tiếng gốc": drop the video's own audio track entirely.
+    keep_original = info.has_audio and not bool(opts.get("mute_original", False))
     subtitles = bool(opts.get("subtitles", True))
     title = str(opts.get("title", ""))
     font = os.getenv("SUBTITLE_FONT", "Arial")
@@ -165,7 +178,9 @@ def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts
     for i, s in enumerate(segs):
         on_progress(f"Đang tạo giọng đọc {i + 1}/{len(segs)}...")
         out = voice_dir / f"{i:03d}.mp3"
-        synthesize(provider, s["text"].strip(), voice_id, out, rate)
+        # A line may use its own voice (e.g. two commentators); otherwise the global one.
+        line_provider, line_voice = line_voice_of(s, provider, voice_id)
+        synthesize(line_provider, s["text"].strip(), line_voice, out, rate)
         clips.append(out)
 
     # 2. Fit each line to its slot: speed up a little if needed, otherwise
@@ -226,7 +241,7 @@ def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts
         v += ",ass=subs.ass"
     v += ",format=yuv420p[vout]"
 
-    if info.has_audio:
+    if keep_original:
         a = (f"[0:a]aresample=44100,aformat=channel_layouts=stereo,volume={game_volume:.3f},apad[game];"
              f"[1:a]volume={voice_volume:.3f},asplit=2[vo1][vo2];")
         if duck:

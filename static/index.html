@@ -73,6 +73,12 @@
   .inline { display: flex; gap: 8px; }
   .inline input { flex: 1; }
   .seg-top .say { min-width: 38px; }
+  .seg-voice { margin-top: 6px; display: flex; gap: 8px; align-items: center; }
+  .seg-voice select { width: auto; max-width: 100%; flex: 1 1 auto; padding: 5px 8px; font-size: 13px; }
+  .seg-voice span { font-size: 12px; color: var(--muted); flex: none; }
+  .seg.custom-voice { border-left: 3px solid #7c8cff; }
+  .mute-box { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #141720; }
+  .disabled-look { opacity: .45; pointer-events: none; }
   .switch { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; margin: 0; }
   .result video { max-height: 75vh; width: auto; max-width: 100%; display: block; margin: 0 auto 12px; }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -131,6 +137,7 @@
       <div class="sticky">
         <video id="player" controls playsinline></video>
         <div class="muted" id="vidInfo" style="margin-top:6px"></div>
+        <button class="small" id="btnPlayerMute" style="margin-top:8px">🔊 Đang nghe tiếng video gốc</button>
       </div>
       <div>
         <div id="summary" class="summary hidden"></div>
@@ -174,8 +181,12 @@
       </div>
     </div>
     <div id="voiceErr" class="muted" style="margin-top:6px"></div>
+    <div class="mute-box" id="muteBox">
+      <label class="switch"><input type="checkbox" id="muteOrig"> 🔇 <b>Tắt hẳn tiếng video gốc</b></label>
+      <div class="muted" id="muteHint">Bỏ toàn bộ tiếng có sẵn trong video (tiếng game, nhạc, giọng người), chỉ giữ giọng bình luận.</div>
+    </div>
     <div class="row" style="margin-top:12px">
-      <div>
+      <div id="gameVolBox">
         <label for="gameVol">Âm lượng tiếng game: <b id="gameVolTxt">35%</b></label>
         <input type="range" id="gameVol" min="0" max="100" value="35" style="width:100%">
       </div>
@@ -185,7 +196,7 @@
       </div>
     </div>
     <div class="row" style="margin-top:10px">
-      <label class="switch"><input type="checkbox" id="duck" checked> Tự giảm tiếng game khi đang bình luận</label>
+      <label class="switch" id="duckBox"><input type="checkbox" id="duck" checked> Tự giảm tiếng game khi đang bình luận</label>
       <label class="switch"><input type="checkbox" id="subs" checked> Chèn phụ đề lên video</label>
     </div>
     <div style="margin-top:14px">
@@ -289,6 +300,33 @@ function fillVoices() {
 }
 $("provider").onchange = fillVoices;
 $("gameVol").oninput = () => $("gameVolTxt").textContent = $("gameVol").value + "%";
+
+// ---------------------------------------------------------------- original audio
+function setupOriginalAudio(hasAudio) {
+  $("muteOrig").disabled = !hasAudio;
+  if (!hasAudio) $("muteOrig").checked = false;
+  $("muteHint").textContent = hasAudio
+    ? "Bỏ toàn bộ tiếng có sẵn trong video (tiếng game, nhạc, giọng người), chỉ giữ giọng bình luận."
+    : "Video này không có tiếng gốc – chỉ có giọng bình luận.";
+  show("btnPlayerMute", hasAudio);
+  applyMute();
+}
+
+function applyMute() {
+  const muted = $("muteOrig").checked || $("muteOrig").disabled;
+  ["gameVolBox", "duckBox"].forEach(id => $(id).classList.toggle("disabled-look", muted));
+  $("player").muted = $("muteOrig").checked;
+  updatePlayerMuteBtn();
+}
+
+function updatePlayerMuteBtn() {
+  $("btnPlayerMute").textContent = $("player").muted ? "🔇 Đang tắt tiếng video gốc – bấm để nghe" : "🔊 Đang nghe tiếng video gốc – bấm để tắt";
+}
+
+$("muteOrig").onchange = applyMute;
+// Preview only: lets the user watch the clip silent or with its sound while editing.
+$("btnPlayerMute").onclick = () => { $("player").muted = !$("player").muted; updatePlayerMuteBtn(); };
+$("player").onvolumechange = updatePlayerMuteBtn;
 $("voiceVol").oninput = () => $("voiceVolTxt").textContent = $("voiceVol").value + "%";
 
 // ---------------------------------------------------------------- upload
@@ -325,6 +363,7 @@ function upload(file) {
 function loadJob(j) {
   job = j; localSet("jobId", j.id);
   const i = j.info;
+  setupOriginalAudio(i.has_audio);
   $("vidInfo").textContent = `${j.name} · ${i.width}×${i.height} (${i.orientation}) · ${fmt(i.duration)}${i.has_audio ? "" : " · không có tiếng"}`;
   const pl = $("player");
   if (!pl.src.endsWith(`/api/jobs/${j.id}/preview`)) pl.src = `/api/jobs/${j.id}/preview`;
@@ -394,7 +433,7 @@ function renderSegs() {
     const words = (s.text || "").trim().split(/\s+/).filter(Boolean).length;
     const secs = Math.max(0.1, s.end - s.start), need = words / 3;
     const bad = need > secs * 1.35;
-    return `<div class="seg" data-i="${i}">
+    return `<div class="seg ${s.voice_id ? "custom-voice" : ""}" data-i="${i}">
       <div class="seg-top">
         <button class="small" data-play="${i}" title="Xem đoạn này">▶</button>
         <button class="small say" data-say="${i}" title="Nghe thử giọng đọc câu này">🔊</button>
@@ -405,6 +444,7 @@ function renderSegs() {
         <button class="small" data-del="${i}" title="Xoá câu">🗑️</button>
       </div>
       <textarea data-k="text" data-i="${i}" placeholder="Lời bình luận...">${escapeHtml(s.text || "")}</textarea>
+      <div class="seg-voice"><span>Giọng:</span>${voiceSelect(i, s)}</div>
       <div class="hint ${bad ? "bad" : ""}" data-hint="${i}">${hint(words, secs, bad)}</div>
     </div>`;
   }).join("") || `<p class="muted">Chưa có câu nào. Tua video tới chỗ muốn bình luận rồi bấm "Thêm câu".</p>`;
@@ -415,13 +455,39 @@ const escapeHtml = (s) => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;"
 $("segs").addEventListener("input", (e) => {
   const i = e.target.dataset.i, k = e.target.dataset.k;
   if (i === undefined || !k) return;
+  if (k === "voice") return;                       // handled on "change"
   segs[i][k] = k === "text" ? e.target.value : parseFloat(e.target.value) || 0;
   const s = segs[i], words = (s.text || "").trim().split(/\s+/).filter(Boolean).length;
   const secs = Math.max(0.1, s.end - s.start), bad = words / 3 > secs * 1.35;
   const h = document.querySelector(`[data-hint="${i}"]`);
   h.textContent = hint(words, secs, bad); h.classList.toggle("bad", bad);
 });
-$("segs").addEventListener("change", (e) => { if (e.target.dataset.k && e.target.dataset.k !== "text") renderSegs(); });
+$("segs").addEventListener("change", (e) => {
+  const k = e.target.dataset.k, i = e.target.dataset.i;
+  if (k === "voice") {
+    const [provider, ...rest] = e.target.value.split("|");
+    if (provider) { segs[i].provider = provider; segs[i].voice_id = rest.join("|"); }
+    else { delete segs[i].provider; delete segs[i].voice_id; }
+    e.target.closest(".seg").classList.toggle("custom-voice", !!provider);
+    return;
+  }
+  if (k && k !== "text") renderSegs();
+});
+
+// Per-line voice picker: "" = the voice chosen in step 4.
+function voiceSelect(i, s) {
+  const cur = s.provider && s.voice_id ? `${s.provider}|${s.voice_id}` : "";
+  const group = (label, provider, list) => list && list.length
+    ? `<optgroup label="${label}">${list.map(v => {
+        const val = `${provider}|${v.id}`;
+        return `<option value="${escapeHtml(val)}" ${val === cur ? "selected" : ""}>${escapeHtml(v.name)}</option>`;
+      }).join("")}</optgroup>` : "";
+  let opts = `<option value="">🎙️ Giọng chung (chọn ở bước 4)</option>`
+    + group("Edge – miễn phí", "edge", voices.edge) + group("ElevenLabs", "elevenlabs", voices.elevenlabs);
+  if (cur && !opts.includes(`value="${escapeHtml(cur)}"`))   // voice no longer listed (e.g. key removed)
+    opts += `<option value="${escapeHtml(cur)}" selected>${escapeHtml(s.voice_id)} (không còn trong danh sách)</option>`;
+  return `<select data-k="voice" data-i="${i}" title="Giọng đọc riêng cho câu này">${opts}</select>`;
+}
 $("segs").addEventListener("click", (e) => {
   const p = e.target.dataset.play, d = e.target.dataset.del, sy = e.target.dataset.say;
   if (sy !== undefined) say(+sy, e.target);
@@ -455,12 +521,15 @@ async function say(i, btn) {
   stopSay(); err("sayErr");
   const text = (segs[i]?.text || "").trim();
   if (!text) return err("sayErr", "Câu này đang trống – viết lời bình trước rồi nghe thử.");
-  if (!$("voice").value) return err("sayErr", "Chưa chọn được giọng đọc ở bước 4. Kiểm tra key ElevenLabs hoặc chọn Edge TTS.");
+  const own = segs[i].provider && segs[i].voice_id;
+  const provider = own ? segs[i].provider : $("provider").value;
+  const voice_id = own ? segs[i].voice_id : $("voice").value;
+  if (!voice_id) return err("sayErr", "Chưa chọn được giọng đọc ở bước 4. Kiểm tra key ElevenLabs hoặc chọn Edge TTS.");
   sayBtn = btn; btn.textContent = "⏳"; btn.disabled = true;
   try {
     const r = await fetch("/api/tts-preview", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, provider: $("provider").value, voice_id: $("voice").value, style: style() }),
+      body: JSON.stringify({ text, provider, voice_id, style: style() }),
     });
     if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || `Lỗi ${r.status}`); }
     const url = URL.createObjectURL(await r.blob());
@@ -539,6 +608,7 @@ $("btnRender").onclick = async () => {
     aspect: document.querySelector("input[name=aspect]:checked").value,
     game_volume: $("gameVol").value / 100, voice_volume: $("voiceVol").value / 100,
     duck: $("duck").checked, subtitles: $("subs").checked, title: $("title").value,
+    mute_original: $("muteOrig").checked,
   };
   try {
     show("stepResult", false);

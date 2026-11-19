@@ -271,6 +271,7 @@ class RenderReq(BaseModel):
     game_volume: float = 0.35
     voice_volume: float = 1.0
     duck: bool = True
+    mute_original: bool = False
     subtitles: bool = True
     title: str = ""
 

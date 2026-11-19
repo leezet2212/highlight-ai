@@ -170,3 +170,47 @@ def test_password_gate(client, monkeypatch):
     assert c.get("/api/config").status_code == 401
     assert c.get("/api/config", auth=("ai-cung-duoc", "bimat")).status_code == 200
     assert c.get("/healthz").status_code == 200
+
+
+# --------------------------------------------------------------- audio options
+
+def _render_capture(tmp_path, sample_video, monkeypatch, segments, **opts):
+    """Render with the _test voice and record ffmpeg filters + which voice each line used."""
+    from app import media, render
+    calls, voices = [], []
+    real_run = render.run
+    monkeypatch.setattr(render, "run", lambda cmd, cwd=None: (calls.append(cmd), real_run(cmd, cwd))[1])
+    real_synth = render.synthesize
+    monkeypatch.setattr(render, "synthesize",
+                        lambda p, t, v, out, rate: (voices.append((p, v)), real_synth("_test", t, v, out, rate)))
+    job = tmp_path / "job"
+    job.mkdir(parents=True)
+    info = media.probe(sample_video)
+    render.render(job, sample_video, info, segments, {"provider": "_test", "voice_id": "chung", **opts})
+    final = next(c for c in reversed(calls) if "output.mp4" in c)
+    return final[final.index("-filter_complex") + 1], voices, job
+
+
+SEGS = [{"start": 0.3, "end": 2.5, "text": "câu một"},
+        {"start": 3, "end": 5, "text": "câu hai", "provider": "_test", "voice_id": "nu"}]
+
+
+def test_mute_original_drops_video_audio(tmp_path, sample_video, monkeypatch):
+    kept, _, _ = _render_capture(tmp_path / "a", sample_video, monkeypatch, SEGS, aspect="16:9")
+    muted, _, job = _render_capture(tmp_path / "b", sample_video, monkeypatch, SEGS, aspect="16:9",
+                                    mute_original=True)
+    assert "[0:a]" in kept and "sidechaincompress" in kept
+    assert "[0:a]" not in muted and "sidechaincompress" not in muted
+    assert (job / "output.mp4").stat().st_size > 0
+
+
+def test_per_line_voice(tmp_path, sample_video, monkeypatch):
+    _, voices, _ = _render_capture(tmp_path, sample_video, monkeypatch, SEGS, aspect="16:9")
+    assert voices == [("_test", "chung"), ("_test", "nu")]
+
+
+def test_normalize_keeps_line_voice():
+    from app import script_ai
+    out = script_ai.normalize({"segments": SEGS}, duration=6)["segments"]
+    assert "voice_id" not in out[0]
+    assert (out[1]["provider"], out[1]["voice_id"]) == ("_test", "nu")

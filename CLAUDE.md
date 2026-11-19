@@ -66,7 +66,8 @@ Trạng thái job nằm trong dict `JOBS` (bộ nhớ) và được ghi ra `job.
 - **Phụ đề** (`write_ass()`): nếu dải trống dưới video đủ cao thì phụ đề nằm trong dải đó (không che HUD game), không thì ở đáy khung. Tiêu đề nằm ở dải trên. Phụ đề được cắt thành cụm ngắn (6 từ khi khung dọc, 9 từ khi ngang). Font lấy từ `SUBTITLE_FONT` – phải hỗ trợ tiếng Việt.
 - Lệnh ffmpeg cuối chạy với `cwd=job_dir` và tham chiếu `subs.ass`/`voice.wav` bằng tên tương đối, để tránh phải escape đường dẫn trong filter `ass=` (đường dẫn Windows có `:` và `\`). Giữ nguyên cách này.
 - **Canh thời gian giọng**: câu dài hơn chỗ trống được tăng tốc tối đa `MAX_SPEEDUP` (1.35×); vẫn dài thì đẩy câu sau lùi lại – giọng không bao giờ chồng nhau. Câu cuối dài được phép giữ khung hình cuối thêm tối đa `MAX_TAIL` giây (`tpad`).
-- **Âm thanh**: tiếng game × `game_volume`, `sidechaincompress` để tự giảm tiếng game khi có giọng (`duck`), rồi `amix` + `alimiter`. Phải xử lý cả video không có luồng âm thanh (`info.has_audio`).
+- **Âm thanh**: `mute_original=True` bỏ hẳn luồng `[0:a]` (coi như video không có tiếng). Ngược lại tiếng game × `game_volume`, `sidechaincompress` để tự giảm tiếng game khi có giọng (`duck`), rồi `amix` + `alimiter`. Phải xử lý cả video không có luồng âm thanh (`info.has_audio`).
+- **Giọng từng câu**: segment có thể mang `provider` + `voice_id` riêng (`normalize()` giữ lại khi có đủ cả hai); `render.line_voice_of()` dùng giọng riêng nếu provider hợp lệ, không thì giọng chung. Nghe thử (`say()` trong index.html) cũng ưu tiên giọng riêng của câu.
 - `probe()` trả kích thước **sau khi xoay** (đọc rotation trong side data/tags) vì ffmpeg tự xoay khi giải mã.
 
 ### Gemini (script_ai.py)
