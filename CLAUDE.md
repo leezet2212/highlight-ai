@@ -81,6 +81,7 @@ Trạng thái job nằm trong dict `JOBS` (bộ nhớ) và được ghi ra `job.
 - **Thêm khung hình xuất**: thêm vào `frame_size()` trong `render.py` và thêm một ô chọn `name="aspect"` trong `index.html`.
 - **Thêm nhà cung cấp giọng**: thêm hàm `synth_xxx()` và nhánh trong `synthesize()` + `list_voices()` ở `tts.py`, thêm `<option>` trong `#provider` ở `index.html`.
 - **Đổi giao diện**: tất cả nằm trong `static/index.html` (CSS biến ở `:root`, JS ở cuối file). Không thêm framework/bước build.
+- **Responsive** (khối `/* responsive */` cuối CSS): `min-width:0` cho con của grid/flex (nếu thiếu, một `<select>` tên giọng dài làm tràn ngang cả trang trên điện thoại 320px); `@media (pointer: coarse)` nút ≥ 42–44px và chữ ô nhập 16px (iOS không tự phóng to); ≤820px trình chỉnh sửa 1 cột, video ≤42vh; ≤520px bố cục điện thoại; điện thoại xoay ngang (max-height 520px) giữ 2 cột video|kịch bản; ≥1400px rộng hơn. Khi sửa giao diện, kiểm tra không tràn ngang ở 320, 390, 844×390, 768, 1024, 1440, 1920 (`document.documentElement.scrollWidth <= clientWidth`).
 
 ## Quy ước
 
