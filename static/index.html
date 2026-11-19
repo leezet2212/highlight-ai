@@ -66,6 +66,13 @@
   .chip:has(input:checked) { border-color: var(--accent); background: #251f10; }
   .chip b { display: block; }
   .chip small { color: var(--muted); }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tab { padding: 7px 14px; border-radius: 99px; font-size: 14px; }
+  .tab.active { background: var(--accent); color: #111; font-weight: 700; }
+  .field { margin-bottom: 10px; }
+  .inline { display: flex; gap: 8px; }
+  .inline input { flex: 1; }
+  .seg-top .say { min-width: 38px; }
   .switch { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; margin: 0; }
   .result video { max-height: 75vh; width: auto; max-width: 100%; display: block; margin: 0 auto 12px; }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -132,7 +139,9 @@
           <button class="small" id="btnAdd">➕ Thêm câu tại thời điểm đang xem</button>
           <button class="small" id="btnRegen">🔄 AI viết lại</button>
         </div>
+        <div id="sayErr" class="error hidden" style="margin-top:10px"></div>
         <p class="muted">Mẹo: khoảng 3 từ mỗi giây là vừa nhịp đọc. Câu quá dài sẽ được đọc nhanh hơn một chút hoặc đẩy câu sau lùi lại.</p>
+        <p class="muted">🔊 Nghe thử bằng giọng đang chọn ở bước 4. Câu đã nghe thử được dùng lại khi xuất video, không tốn thêm lượt ElevenLabs.</p>
       </div>
     </div>
   </section>
@@ -195,6 +204,35 @@
       <a class="btn" id="dlSrt"><button>📝 Tải phụ đề .srt</button></a>
     </div>
     <p class="muted" style="text-align:center">Muốn đổi khung hình hoặc giọng khác? Chỉnh ở bước 3–4 rồi bấm <b>Xuất video</b> lại.</p>
+  </section>
+
+  <!-- Captions -->
+  <section class="card hidden" id="stepPosts">
+    <h2><span class="num">📣</span> Caption &amp; hashtag để đăng bài</h2>
+    <div class="tabs" id="postTabs">
+      <button class="tab active" data-net="tiktok">TikTok</button>
+      <button class="tab" data-net="facebook">Facebook</button>
+      <button class="tab" data-net="youtube">YouTube Shorts</button>
+    </div>
+    <p id="postEmpty" class="muted">Chưa có caption. Bấm nút bên dưới để AI viết theo kịch bản hiện tại.</p>
+    <div id="postBody" class="hidden">
+      <div class="field" id="ytTitleWrap">
+        <label for="postTitle">Tiêu đề video</label>
+        <div class="inline"><input type="text" id="postTitle"><button class="small" id="btnCopyTitle">📋 Copy</button></div>
+      </div>
+      <div class="field">
+        <label for="postCaption" id="postCaptionLabel">Caption</label>
+        <textarea id="postCaption" rows="4"></textarea>
+      </div>
+      <div class="field">
+        <label for="postTags">Hashtag (cách nhau bằng dấu cách)</label>
+        <input type="text" id="postTags">
+      </div>
+      <div class="actions"><button class="primary" id="btnCopyPost">📋 Copy caption + hashtag</button></div>
+    </div>
+    <div class="actions" style="margin-top:12px"><button class="small" id="btnPosts">🔄 AI viết lại caption theo kịch bản hiện tại</button></div>
+    <div id="postsState" class="muted hidden" style="margin-top:10px"></div>
+    <div id="postsErr" class="error hidden" style="margin-top:10px"></div>
   </section>
 </main>
 
@@ -297,6 +335,7 @@ function loadJob(j) {
     $("summary").textContent = j.script.summary ? "📋 " + j.script.summary : "";
     show("summary", !!j.script.summary);
     openEditor();
+    renderPosts(j.script.posts);
   }
   if (j.result) showResult(j.result);
   if (j.status === "running") poll();
@@ -319,25 +358,31 @@ $("btnRegen").onclick = makeScript;
 $("btnManual").onclick = () => {
   if (!segs.length) segs = [{ start: 0.5, end: 4, event: "", text: "" }];
   openEditor();
+  if (!posts) renderPosts(null);
 };
+
+// Where each background task shows its progress and errors.
+const AREAS = { script: ["scriptState", "scriptErr"], render: ["renderState", "renderErr"],
+                captions: ["postsState", "postsErr"] };
 
 function poll() {
   clearTimeout(pollTimer);
-  const busy = (job.task === "render") ? "renderState" : "scriptState";
+  const [busy, errBox] = AREAS[job.task] || AREAS.script;
   show(busy); $(busy).innerHTML = `<span class="spinner"></span>${job.progress || "Đang xử lý..."}`;
   setButtons(true);
   pollTimer = setTimeout(async () => {
     try { job = await api(`/api/jobs/${job.id}`); } catch (e) { return pollTimer = setTimeout(poll, 3000); }
     if (job.status === "running") return poll();
     setButtons(false); show(busy, false);
-    if (job.status === "error") return err(job.task === "render" ? "renderErr" : "scriptErr", job.error);
+    if (job.status === "error") return err(errBox, job.error);
     if (job.task === "script") { segs = []; loadJob(job); }
+    else if (job.task === "captions") renderPosts(job.script && job.script.posts);
     else if (job.result) showResult(job.result);
   }, 1500);
 }
 
 function setButtons(disabled) {
-  ["btnScript", "btnRegen", "btnRender", "btnManual"].forEach(id => $(id).disabled = disabled);
+  ["btnScript", "btnRegen", "btnRender", "btnManual", "btnPosts"].forEach(id => $(id).disabled = disabled);
 }
 
 // ---------------------------------------------------------------- editor
@@ -352,6 +397,7 @@ function renderSegs() {
     return `<div class="seg" data-i="${i}">
       <div class="seg-top">
         <button class="small" data-play="${i}" title="Xem đoạn này">▶</button>
+        <button class="small say" data-say="${i}" title="Nghe thử giọng đọc câu này">🔊</button>
         <input type="number" step="0.1" min="0" value="${(+s.start).toFixed(1)}" data-k="start" data-i="${i}" title="Bắt đầu (giây)">
         <span class="muted">→</span>
         <input type="number" step="0.1" min="0" value="${(+s.end).toFixed(1)}" data-k="end" data-i="${i}" title="Kết thúc (giây)">
@@ -377,9 +423,10 @@ $("segs").addEventListener("input", (e) => {
 });
 $("segs").addEventListener("change", (e) => { if (e.target.dataset.k && e.target.dataset.k !== "text") renderSegs(); });
 $("segs").addEventListener("click", (e) => {
-  const p = e.target.dataset.play, d = e.target.dataset.del;
+  const p = e.target.dataset.play, d = e.target.dataset.del, sy = e.target.dataset.say;
+  if (sy !== undefined) say(+sy, e.target);
   if (p !== undefined) { const pl = $("player"); pl.currentTime = segs[p].start; pl.play(); }
-  if (d !== undefined) { segs.splice(d, 1); renderSegs(); }
+  if (d !== undefined) { stopSay(); segs.splice(d, 1); renderSegs(); }
 });
 $("player").ontimeupdate = () => {
   const t = $("player").currentTime;
@@ -393,6 +440,91 @@ $("btnAdd").onclick = () => {
   renderSegs();
   const idx = segs.findIndex(s => s.start === t && !s.text);
   document.querySelector(`textarea[data-i="${idx}"]`)?.focus();
+};
+
+// ---------------------------------------------------------------- voice preview
+let sayAudio = null, sayBtn = null;
+
+function stopSay() {
+  if (sayAudio) { sayAudio.pause(); sayAudio = null; }
+  if (sayBtn) { sayBtn.textContent = "🔊"; sayBtn.disabled = false; sayBtn = null; }
+}
+
+async function say(i, btn) {
+  if (sayBtn === btn) return stopSay();          // second click = stop
+  stopSay(); err("sayErr");
+  const text = (segs[i]?.text || "").trim();
+  if (!text) return err("sayErr", "Câu này đang trống – viết lời bình trước rồi nghe thử.");
+  if (!$("voice").value) return err("sayErr", "Chưa chọn được giọng đọc ở bước 4. Kiểm tra key ElevenLabs hoặc chọn Edge TTS.");
+  sayBtn = btn; btn.textContent = "⏳"; btn.disabled = true;
+  try {
+    const r = await fetch("/api/tts-preview", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, provider: $("provider").value, voice_id: $("voice").value, style: style() }),
+    });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || `Lỗi ${r.status}`); }
+    const url = URL.createObjectURL(await r.blob());
+    if (sayBtn !== btn) return URL.revokeObjectURL(url);   // user moved on meanwhile
+    sayAudio = new Audio(url);
+    sayAudio.onended = () => { URL.revokeObjectURL(url); stopSay(); };
+    btn.textContent = "⏹"; btn.disabled = false;
+    await sayAudio.play();
+  } catch (e) {
+    if (sayBtn === btn) stopSay();
+    err("sayErr", "Không nghe thử được: " + e.message);
+  }
+}
+
+// ---------------------------------------------------------------- captions
+let posts = null, net = "tiktok";
+
+function renderPosts(p) {
+  show("stepPosts");
+  posts = p ? JSON.parse(JSON.stringify(p)) : null;
+  show("postEmpty", !posts); show("postBody", !!posts);
+  if (posts) fillPost();
+}
+
+function fillPost() {
+  document.querySelectorAll("#postTabs .tab").forEach(b => b.classList.toggle("active", b.dataset.net === net));
+  const p = posts[net];
+  show("ytTitleWrap", net === "youtube");
+  $("postCaptionLabel").textContent = net === "youtube" ? "Mô tả video" : "Caption";
+  $("postTitle").value = p.title || "";
+  $("postCaption").value = p.caption || "";
+  $("postTags").value = (p.hashtags || []).join(" ");
+}
+
+$("postTabs").onclick = (e) => { const n = e.target.dataset.net; if (!n) return; net = n; if (posts) fillPost(); };
+$("postTitle").oninput = () => { posts[net].title = $("postTitle").value; };
+$("postCaption").oninput = () => { posts[net].caption = $("postCaption").value; };
+$("postTags").oninput = () => { posts[net].hashtags = $("postTags").value.split(/\s+/).filter(Boolean); };
+
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t);
+    t.select(); document.execCommand("copy"); t.remove();
+  }
+  const old = btn.textContent; btn.textContent = "✅ Đã copy"; setTimeout(() => btn.textContent = old, 1500);
+}
+$("btnCopyPost").onclick = () => {
+  const p = posts[net];
+  copyText(`${p.caption}\n\n${(p.hashtags || []).join(" ")}`.trim(), $("btnCopyPost"));
+};
+$("btnCopyTitle").onclick = () => copyText(posts[net].title || "", $("btnCopyTitle"));
+
+$("btnPosts").onclick = async () => {
+  err("postsErr");
+  if (!cfg.gemini) return err("postsErr", "Cần điền GEMINI_API_KEY vào file .env (lấy miễn phí tại aistudio.google.com) rồi khởi động lại ứng dụng.");
+  const clean = segs.filter(s => (s.text || "").trim());
+  if (!clean.length) return err("postsErr", "Kịch bản đang trống – hãy viết lời bình trước rồi mới tạo caption.");
+  if (posts && !confirm("AI sẽ viết lại caption cho cả 3 mạng, bỏ các chỉnh sửa caption hiện tại?")) return;
+  try {
+    job = await api(`/api/jobs/${job.id}/captions`, { method: "POST",
+      body: JSON.stringify({ segments: clean, style: style(), notes: $("notes").value }) });
+    poll();
+  } catch (e) { err("postsErr", e.message); }
 };
 
 // ---------------------------------------------------------------- render

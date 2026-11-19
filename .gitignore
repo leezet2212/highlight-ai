@@ -5,3 +5,4 @@ __pycache__/
 cloudflared
 cloudflared.exe
 .tunnel.log
+.pytest_cache/

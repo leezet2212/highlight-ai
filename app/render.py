@@ -19,6 +19,7 @@ from .tts import synthesize
 MAX_SPEEDUP = 1.35        # never speed speech up more than this to fit a slot
 MAX_TAIL = 4.0            # seconds the last frame may be held for a long final line
 GAP = 0.12                # minimum silence between two lines
+DEFAULT_VOICE = "vi-VN-NamMinhNeural"
 
 
 def even(x: float) -> int:
@@ -139,7 +140,7 @@ def write_srt(path: Path, lines: list[dict]) -> None:
 def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts: dict,
            on_progress=lambda msg: None) -> dict:
     provider = opts.get("provider", "edge")
-    voice_id = opts.get("voice_id") or "vi-VN-NamMinhNeural"
+    voice_id = opts.get("voice_id") or DEFAULT_VOICE
     rate = opts.get("rate") or edge_rate(opts.get("style", ""))
     aspect = opts.get("aspect", "9:16")
     game_volume = float(opts.get("game_volume", 0.35))

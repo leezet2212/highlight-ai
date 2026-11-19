@@ -23,7 +23,7 @@ Người dùng cuối chạy **trên máy của họ** (cách chính): `run.bat`
 
 **Bản trên web**: `Dockerfile` (cổng `PORT`, mặc định 7860) chạy trên Hugging Face Spaces. `.github/workflows/deploy-hf.yml` (chỉ chạy bằng tay – workflow_dispatch – vì hạn mức Hugging Face miễn phí không đủ, Space của người dùng đang bị Paused) chạy `deploy/deploy_hf.py`: tự tạo Space (mặc định `<tài-khoản-hf>/highlight-ai`, đổi bằng variable `HF_SPACE`), chép các secret GitHub `GEMINI_API_KEY`/`ELEVENLABS_API_KEY`/`APP_PASSWORD` sang secret của Space, rồi upload các file git đang theo dõi (bỏ `deploy/`, `.github/`, `CLAUDE.md`; header YAML của Space ở `deploy/hf-header.md`). Không có secret `HF_TOKEN` thì bỏ qua. Biến môi trường khi chạy trên web: `APP_PASSWORD` (HTTP Basic auth, `/healthz` không cần mật khẩu), `JOB_TTL_HOURS` (tự xoá job cũ), `MAX_CONCURRENT_RENDERS` (semaphore giới hạn số video xuất cùng lúc), `DATA_DIR`.
 
-Chưa có bộ test tự động. Kiểm tra khi sửa:
+**Test tự động** (không cần key/Internet, Gemini được thay bằng hàm giả, giọng dùng provider `_test`): `pip install pytest && python -m pytest -q`. Chạy trước mỗi lần push và thêm test khi thêm chức năng. Ngoài ra kiểm tra thủ công:
 
 - **Phần ghép video (không cần key, không cần mạng)**: tạo video giả rồi gọi `render.render(...)` với `provider="_test"` (giọng giả bằng sóng sine, chỉ dành cho kiểm thử, không hiện trên giao diện):
   ```bash
@@ -38,14 +38,15 @@ Chưa có bộ test tự động. Kiểm tra khi sửa:
 
 ```
 app/server.py     FastAPI: API + phục vụ static/. Job chạy nền bằng thread.
-app/script_ai.py  Gửi video cho Gemini → JSON {summary, segments[start,end,event,text]}; normalize() kẹp thời gian, bỏ chồng lấn.
+app/script_ai.py  Gửi video cho Gemini → JSON {summary, segments[start,end,event,text], posts{tiktok,facebook,youtube}{title,caption,hashtags}}; normalize() kẹp thời gian, bỏ chồng lấn; normalize_posts() làm sạch hashtag (luôn có #Shorts cho YouTube); generate_posts() viết lại caption chỉ từ chữ (không gửi video); gemini_error_message() dịch lỗi Gemini sang tiếng Việt.
 app/styles.py     Danh sách phong cách bình luận (label, prompt, tốc độ đọc Edge).
-app/tts.py        ElevenLabs (REST qua httpx) và Edge TTS; provider "_test" cho kiểm thử.
+app/tts.py        ElevenLabs (REST qua httpx) và Edge TTS; provider "_test" cho kiểm thử. Bộ nhớ đệm giọng `synthesize_cached()` (khoá = provider+voice+model+tốc độ+chữ) ở `data/tts_cache/`, dùng chung cho nghe thử (`POST /api/tts-preview`) và xuất video – nghe thử rồi xuất không tốn ElevenLabs hai lần. Giữ tốc độ đọc giống nhau ở hai chỗ (`edge_rate(style)`) để trúng cache.
 app/render.py     Toàn bộ khâu dựng video bằng ffmpeg.
 app/media.py      ffprobe/ffmpeg helpers: probe(), audio_duration(), make_preview(), run(), video_encoders().
 static/index.html Giao diện một trang, JS thuần, không build step.
 Dockerfile        Image chạy trên web (Hugging Face Spaces).
 deploy/           deploy_hf.py (tạo Space, chép secret, upload) + hf-header.md; chạy bởi .github/workflows/deploy-hf.yml.
+tests/            test_app.py – pytest, chạy offline.
 data/jobs/<id>/   Dữ liệu từng video (gitignored): source.*, preview.mp4, job.json, voice/, voice.wav, subs.ass, output.mp4, output.srt
 ```
 
@@ -53,7 +54,10 @@ data/jobs/<id>/   Dữ liệu từng video (gitignored): source.*, preview.mp4, 
 1. `POST /api/upload` → lưu `source.*`, `probe()`, tạo `preview.mp4` (≤960px, nhẹ) dùng cho trình phát trên web **và gửi cho Gemini** (đỡ tốn hạn mức miễn phí).
 2. `POST /api/jobs/{id}/script` → `script_ai.generate_script()` chạy nền.
 3. Giao diện hỏi `GET /api/jobs/{id}` mỗi 1,5 giây (`status`: idle/running/done/error, `task`, `progress`, `error`).
-4. `POST /api/jobs/{id}/render` → `render.render()` chạy nền → `output.mp4` + `output.srt`.
+4. (tuỳ chọn) `POST /api/jobs/{id}/captions` → `generate_posts()` chạy nền, cập nhật `script.posts`.
+5. `POST /api/jobs/{id}/render` → `render.render()` chạy nền → `output.mp4` + `output.srt` (giữ nguyên `script.posts`).
+
+Giao diện: mỗi tác vụ nền (`script`/`render`/`captions`) hiện tiến độ và lỗi ở vùng riêng – bảng `AREAS` trong `index.html`; thêm tác vụ mới thì thêm vào đó. Caption người dùng sửa chỉ nằm ở trình duyệt (không lưu lên máy chủ).
 
 Trạng thái job nằm trong dict `JOBS` (bộ nhớ) và được ghi ra `job.json`; `restore_jobs()` nạp lại khi khởi động lại máy chủ. Mỗi job chỉ chạy một tác vụ một lúc (trả 409 nếu đang bận).
 

@@ -7,6 +7,8 @@ Tải video highlight (chưa có tiếng bình luận) lên → AI **xem trận 
 - 🤖 **AI xem video thật** (Google Gemini, miễn phí) và viết lời bình bám theo từng mốc thời gian.
 - 🎭 **7 phong cách**: Hài hước, BLV nghiêm túc, BLV eSports gào thét, Cà khịa, Drama, Phim tài liệu động vật, hoặc tự viết yêu cầu.
 - ✍️ **Sửa kịch bản** trước khi xuất: đổi lời, chỉnh thời gian, thêm/xoá câu, bấm ▶ để xem đúng đoạn đó.
+- 🔊 **Nghe thử giọng từng câu** trước khi xuất cả video. Câu đã nghe thử được dùng lại lúc xuất, không tốn thêm lượt ElevenLabs.
+- 📣 **Caption + hashtag tự động** cho TikTok, Facebook, YouTube Shorts (có cả tiêu đề YouTube). AI viết cùng lúc với lời bình, sửa được, bấm là copy. Sửa kịch bản xong có thể bấm *AI viết lại caption*.
 - 🗣️ **Giọng đọc**: ElevenLabs (cảm xúc, có gói miễn phí) hoặc Edge TTS (miễn phí hoàn toàn).
 - 🔉 **Tự giảm tiếng game** khi đang bình luận, chỉnh được âm lượng game và giọng.
 - 📱 **Xuất nhiều khung hình**:
@@ -96,8 +98,8 @@ Dịch vụ khác (Render, Railway, Fly.io, VPS) cũng chạy được bằng `D
 2. Chọn phong cách. Bạn có thể ghi thêm yêu cầu, ví dụ *"mình cầm Nakroth áo đỏ, gọi mình là anh Tèo, giọng miền Tây"*.
 3. Bấm **🤖 AI xem trận & viết lời bình** và đợi khoảng 30–60 giây.
 4. Đọc lại kịch bản và sửa cho hợp ý. Câu nào có cảnh báo *"hơi dài"* thì nên rút gọn.
-5. Chọn khung hình, giọng đọc, tiêu đề rồi bấm **🎬 Xuất video**.
-6. Tải video MP4 về và đăng lên mạng xã hội.
+5. Bấm 🔊 cạnh từng câu để nghe thử. Chọn khung hình, giọng đọc, tiêu đề rồi bấm **🎬 Xuất video**.
+6. Tải video MP4 về. Ở mục **📣 Caption & hashtag**, chọn TikTok, Facebook hoặc YouTube và bấm **Copy** để dán khi đăng bài.
 
 ## Lưu ý
 
@@ -119,4 +121,6 @@ app/
   media.py      Hàm tiện ích ffmpeg/ffprobe, tự chọn card đồ hoạ để xuất video
 static/
   index.html    Giao diện web
+tests/
+  test_app.py   Kiểm thử tự động (không cần key): python -m pytest -q
 ```

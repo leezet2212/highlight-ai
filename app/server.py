@@ -22,10 +22,11 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
 from . import media, render as renderer, script_ai, tts  # noqa: E402
-from .styles import STYLES  # noqa: E402
+from .styles import STYLES, edge_rate  # noqa: E402
 
 DATA = Path(os.getenv("DATA_DIR") or ROOT / "data") / "jobs"
 DATA.mkdir(parents=True, exist_ok=True)
+TTS_CACHE = DATA.parent / "tts_cache"
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "500"))
 JOB_TTL_HOURS = float(os.getenv("JOB_TTL_HOURS", "24"))
 APP_PASSWORD = os.getenv("APP_PASSWORD", "").strip()
@@ -75,6 +76,13 @@ def cleanup_old_jobs() -> None:
                 JOBS.pop(d.name, None)
         except FileNotFoundError:
             pass
+    if TTS_CACHE.exists():
+        for f in TTS_CACHE.iterdir():
+            try:
+                if f.stat().st_mtime < cutoff:
+                    f.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def job_dir(job_id: str) -> Path:
@@ -124,6 +132,7 @@ def restore_jobs() -> None:
 
 cleanup_old_jobs()
 restore_jobs()
+tts.CACHE_DIR = TTS_CACHE
 
 
 # ------------------------------------------------------------------ API
@@ -205,6 +214,52 @@ def make_script(job_id: str, req: ScriptReq):
 
     background(job_id, "script", task)
     return public(job_id)
+
+
+class CaptionReq(BaseModel):
+    segments: list[dict]
+    style: str = "hai_huoc"
+    notes: str = ""
+
+
+@app.post("/api/jobs/{job_id}/captions")
+def make_captions(job_id: str, req: CaptionReq):
+    job_dir(job_id)
+    job = JOBS[job_id]
+    segs = script_ai.normalize({"segments": req.segments}, job["info_obj"].duration)["segments"]
+
+    def task(progress):
+        progress("AI đang viết caption và hashtag...")
+        script = dict(job.get("script") or {"summary": ""})
+        posts = script_ai.generate_posts(segs, script.get("summary", ""), req.style, req.notes)
+        script.update(segments=segs, posts=posts, style=req.style)
+        update(job_id, script=script)
+
+    background(job_id, "captions", task)
+    return public(job_id)
+
+
+class PreviewReq(BaseModel):
+    text: str
+    provider: str = "edge"
+    voice_id: str = ""
+    style: str = "hai_huoc"
+
+
+@app.post("/api/tts-preview")
+def tts_preview(req: PreviewReq):
+    """Speak one line so the user can hear it before rendering the whole video."""
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(400, "Câu này đang trống.")
+    if len(text) > 600:
+        raise HTTPException(400, "Câu quá dài để nghe thử (tối đa 600 ký tự).")
+    voice = req.voice_id or renderer.DEFAULT_VOICE
+    try:
+        path = tts.synthesize_cached(req.provider, text, voice, edge_rate(req.style))
+    except tts.TTSError as exc:
+        raise HTTPException(400, str(exc))
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 class RenderReq(BaseModel):

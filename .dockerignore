@@ -7,3 +7,5 @@ deploy/
 cloudflared
 cloudflared.exe
 .tunnel.log
+tests/
+.pytest_cache/

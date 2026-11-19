@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import os
+import shutil
+import uuid
 from pathlib import Path
 
 import httpx
@@ -13,6 +17,11 @@ EDGE_VOICES = [
 ]
 
 ELEVEN_URL = "https://api.elevenlabs.io/v1"
+
+# Set by the server. Speech for the same (voice, text, speed) is made once and
+# reused by both the per-line preview and the final render, so previewing a
+# line never costs ElevenLabs characters twice.
+CACHE_DIR: Path | None = None
 
 
 class TTSError(RuntimeError):
@@ -83,7 +92,41 @@ def synth_edge(text: str, voice_id: str, out: Path, rate: str = "+0%") -> None:
         raise TTSError(f"Edge TTS lỗi (cần Internet): {exc}") from exc
 
 
+def cache_key(provider: str, text: str, voice_id: str, rate: str) -> str:
+    model = os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5") if provider == "elevenlabs" else ""
+    speed = rate if provider == "edge" else ""
+    raw = json.dumps([provider, voice_id, model, speed, text.strip()], ensure_ascii=False)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+
+def synthesize_cached(provider: str, text: str, voice_id: str, rate: str = "+0%") -> Path:
+    """Return an mp3 for this line, generating it only if it isn't cached yet."""
+    if CACHE_DIR is None:
+        raise RuntimeError("tts.CACHE_DIR is not configured")
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cached = CACHE_DIR / f"{cache_key(provider, text, voice_id, rate)}.mp3"
+    if cached.exists() and cached.stat().st_size > 0:
+        cached.touch()  # keep recently used speech from being cleaned up
+        return cached
+    tmp = CACHE_DIR / f".{uuid.uuid4().hex}.mp3"
+    try:
+        _synthesize(provider, text.strip(), voice_id, tmp, rate)
+        if not tmp.exists() or tmp.stat().st_size == 0:
+            raise TTSError("Dịch vụ giọng đọc trả về file rỗng, hãy thử lại.")
+        os.replace(tmp, cached)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return cached
+
+
 def synthesize(provider: str, text: str, voice_id: str, out: Path, rate: str = "+0%") -> None:
+    if CACHE_DIR is None:
+        _synthesize(provider, text, voice_id, out, rate)
+    else:
+        shutil.copyfile(synthesize_cached(provider, text, voice_id, rate), out)
+
+
+def _synthesize(provider: str, text: str, voice_id: str, out: Path, rate: str = "+0%") -> None:
     if provider == "elevenlabs":
         synth_elevenlabs(text, voice_id, out)
     elif provider == "edge":
@@ -92,6 +135,6 @@ def synthesize(provider: str, text: str, voice_id: str, out: Path, rate: str = "
         from .media import run
         dur = max(1.0, len(text.split()) / 3)
         run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
-             f"sine=frequency=440:duration={dur}", str(out)])
+             f"sine=frequency=440:duration={dur}", "-f", "mp3", str(out)])
     else:
         raise TTSError(f"Không biết nhà cung cấp giọng: {provider}")
