@@ -17,9 +17,11 @@ cp .env.example .env                     # điền GEMINI_API_KEY, ELEVENLABS_AP
 python -m uvicorn app.server:app --port 8000 --reload
 ```
 
-Người dùng cuối chạy bằng `run.bat` (Windows) / `run.sh` (macOS/Linux) – giữ hai file này đồng bộ khi đổi cách chạy.
+Người dùng cuối chạy **trên máy của họ** (cách chính): `run.bat` / `run.sh`; link công khai qua Cloudflare quick tunnel bằng `run-public.bat` (đặt `HIGHLIGHT_PUBLIC=1` rồi gọi `run.bat`) / `./run.sh public` – bắt buộc có `APP_PASSWORD`, đặt `MAX_UPLOAD_MB=95` vì Cloudflare miễn phí chặn upload >100 MB. Giữ các script đồng bộ khi đổi cách chạy. File `.bat` phải là ASCII không dấu + CRLF, và **không có dấu ngoặc `( )` trong `echo` bên trong khối `if (...)`** (sẽ đóng khối sớm).
 
-**Bản trên web**: `Dockerfile` (cổng `PORT`, mặc định 7860) chạy trên Hugging Face Spaces. `.github/workflows/deploy-hf.yml` chạy `deploy/deploy_hf.py` mỗi khi có push lên `main`: tự tạo Space (mặc định `<tài-khoản-hf>/highlight-ai`, đổi bằng variable `HF_SPACE`), chép các secret GitHub `GEMINI_API_KEY`/`ELEVENLABS_API_KEY`/`APP_PASSWORD` sang secret của Space, rồi upload các file git đang theo dõi (bỏ `deploy/`, `.github/`, `CLAUDE.md`; header YAML của Space ở `deploy/hf-header.md`). Không có secret `HF_TOKEN` thì bỏ qua. Mọi thứ trên `main` sẽ lên web ngay – kiểm tra kỹ trước khi push. Biến môi trường khi chạy trên web: `APP_PASSWORD` (HTTP Basic auth, `/healthz` không cần mật khẩu), `JOB_TTL_HOURS` (tự xoá job cũ), `MAX_CONCURRENT_RENDERS` (semaphore giới hạn số video xuất cùng lúc), `DATA_DIR`.
+**Xuất video**: `media.video_encoders()` dò GPU encoder bằng một lần mã hoá thử (nvenc → qsv → amf → videotoolbox), luôn có `libx264` dự phòng; `render.py` thử lần lượt nếu encoder lỗi. Biến `VIDEO_ENCODER` (auto/tên encoder) và `VIDEO_PRESET` (preset libx264, mặc định veryfast). Thử đường dự phòng bằng cách gán `media._encoder_cache` thành `[('h264_nvenc', ...), media.software_encoder()]` trên máy không có GPU.
+
+**Bản trên web**: `Dockerfile` (cổng `PORT`, mặc định 7860) chạy trên Hugging Face Spaces. `.github/workflows/deploy-hf.yml` (chỉ chạy bằng tay – workflow_dispatch – vì hạn mức Hugging Face miễn phí không đủ, Space của người dùng đang bị Paused) chạy `deploy/deploy_hf.py`: tự tạo Space (mặc định `<tài-khoản-hf>/highlight-ai`, đổi bằng variable `HF_SPACE`), chép các secret GitHub `GEMINI_API_KEY`/`ELEVENLABS_API_KEY`/`APP_PASSWORD` sang secret của Space, rồi upload các file git đang theo dõi (bỏ `deploy/`, `.github/`, `CLAUDE.md`; header YAML của Space ở `deploy/hf-header.md`). Không có secret `HF_TOKEN` thì bỏ qua. Biến môi trường khi chạy trên web: `APP_PASSWORD` (HTTP Basic auth, `/healthz` không cần mật khẩu), `JOB_TTL_HOURS` (tự xoá job cũ), `MAX_CONCURRENT_RENDERS` (semaphore giới hạn số video xuất cùng lúc), `DATA_DIR`.
 
 Chưa có bộ test tự động. Kiểm tra khi sửa:
 
@@ -40,7 +42,7 @@ app/script_ai.py  Gửi video cho Gemini → JSON {summary, segments[start,end,e
 app/styles.py     Danh sách phong cách bình luận (label, prompt, tốc độ đọc Edge).
 app/tts.py        ElevenLabs (REST qua httpx) và Edge TTS; provider "_test" cho kiểm thử.
 app/render.py     Toàn bộ khâu dựng video bằng ffmpeg.
-app/media.py      ffprobe/ffmpeg helpers: probe(), audio_duration(), make_preview(), run().
+app/media.py      ffprobe/ffmpeg helpers: probe(), audio_duration(), make_preview(), run(), video_encoders().
 static/index.html Giao diện một trang, JS thuần, không build step.
 Dockerfile        Image chạy trên web (Hugging Face Spaces).
 deploy/           deploy_hf.py (tạo Space, chép secret, upload) + hf-header.md; chạy bởi .github/workflows/deploy-hf.yml.

@@ -4,3 +4,6 @@ data/
 __pycache__/
 deploy/
 *.zip
+cloudflared
+cloudflared.exe
+.tunnel.log

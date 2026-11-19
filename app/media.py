@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -74,6 +75,59 @@ def audio_duration(path: Path) -> float:
         "-of", "default=nw=1:nk=1", str(path),
     ])
     return float(out.strip())
+
+
+# Hardware H.264 encoders, fastest first. Each entry: (encoder, quality args).
+# ffmpeg often lists encoders the machine has no hardware for, so every
+# candidate is verified with a tiny test encode before it is used.
+HW_ENCODERS = [
+    ("h264_nvenc", ["-preset", "p5", "-rc", "vbr", "-cq", "21", "-b:v", "0"]),           # NVIDIA
+    ("h264_qsv", ["-preset", "faster", "-global_quality", "21"]),                        # Intel
+    ("h264_amf", ["-quality", "balanced", "-rc", "cqp", "-qp_i", "21", "-qp_p", "23"]),  # AMD
+    ("h264_videotoolbox", ["-q:v", "65"]),                                               # macOS
+]
+_encoder_cache: list[tuple[str, list[str]]] | None = None
+
+
+def software_encoder() -> tuple[str, list[str]]:
+    preset = os.getenv("VIDEO_PRESET", "veryfast")
+    return "libx264", ["-preset", preset, "-crf", "20"]
+
+
+def _encoder_works(name: str, args: list[str]) -> bool:
+    proc = subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=320x240:d=0.2",
+         "-c:v", name, *args, "-pix_fmt", "yuv420p", "-f", "null", "-"],
+        capture_output=True, timeout=30,
+    )
+    return proc.returncode == 0
+
+
+def video_encoders() -> list[tuple[str, list[str]]]:
+    """Encoders to try for the final video, best first; libx264 is always last.
+
+    VIDEO_ENCODER=auto (default) picks a working GPU encoder if there is one;
+    set it to e.g. libx264 or h264_nvenc to force a choice.
+    """
+    global _encoder_cache
+    if _encoder_cache is not None:
+        return _encoder_cache
+    choice = os.getenv("VIDEO_ENCODER", "auto").strip() or "auto"
+    found: list[tuple[str, list[str]]] = []
+    if choice != "libx264":
+        for name, args in HW_ENCODERS:
+            if choice not in ("auto", name):
+                continue
+            try:
+                if _encoder_works(name, args):
+                    found.append((name, args))
+                    break
+            except Exception:
+                pass
+    found.append(software_encoder())
+    _encoder_cache = found
+    print(f"[highlight-ai] Bộ mã hoá video: {found[0][0]}")
+    return found
 
 
 def make_preview(src: Path, dst: Path) -> None:

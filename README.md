@@ -32,16 +32,34 @@ Tải video highlight (chưa có tiếng bình luận) lên → AI **xem trận 
    ELEVENLABS_API_KEY=key-elevenlabs-cua-ban
    ```
 
-## Chạy ứng dụng
+## Chạy ứng dụng (khuyên dùng: trên máy tính của bạn)
 
-- **Windows**: bấm đúp `run.bat`
-- **macOS/Linux**: chạy `./run.sh`
+| Bạn muốn | Windows | macOS / Linux |
+|---|---|---|
+| Dùng trên máy tính | bấm đúp **`run.bat`** | `./run.sh` |
+| Mở được từ **điện thoại ở bất cứ đâu** | bấm đúp **`run-public.bat`** | `./run.sh public` |
 
-Sau đó mở trình duyệt tại **http://localhost:8000**.
+- Lần đầu chạy sẽ mất 1–2 phút để cài thư viện. Các lần sau mở lên ngay.
+- Script tự kiểm tra Python/FFmpeg và báo cách cài nếu thiếu, tự tạo file `.env`, tự mở trình duyệt tại **http://localhost:8000**.
+- Tắt app: đóng cửa sổ đen (Windows) hoặc bấm `Ctrl+C`.
 
-## Đưa lên web (Hugging Face Spaces – miễn phí)
+### Xuất video nhanh bằng card đồ hoạ
+App tự dùng **card đồ hoạ (GPU)** nếu máy có: NVIDIA, Intel (Quick Sync), AMD, hoặc chip Apple trên Mac. Xuất video nhanh hơn 3–10 lần so với dùng CPU. Khi khởi động, cửa sổ đen sẽ in dòng `Bộ mã hoá video: ...` để bạn biết app đang dùng gì. Nếu card lỗi, app tự chuyển sang CPU. Muốn tự chọn thì sửa `VIDEO_ENCODER` trong `.env`.
 
-App cần Python + ffmpeg nên **không chạy được trên GitHub Pages**. Hugging Face Spaces miễn phí, có 2 CPU và 16 GB RAM, đủ để dựng video. Bạn **chỉ nhập key ở GitHub**. GitHub Action sẽ tự tạo Space, chép key sang Space và đưa code lên.
+### Link công khai (mở từ điện thoại)
+`run-public.bat` / `./run.sh public` dùng **Cloudflare Tunnel** (miễn phí, không cần tài khoản) để tạo link dạng `https://....trycloudflare.com`:
+1. **Bắt buộc** đặt mật khẩu trong `.env`: `APP_PASSWORD=matkhaucuaban`. Script sẽ không chạy nếu thiếu.
+2. Chạy script. Lần đầu nó tự tải Cloudflare Tunnel về.
+3. Link hiện trong cửa sổ "Link công khai" (Windows) hoặc ngay trên màn hình (macOS/Linux). Mở link trên điện thoại và nhập mật khẩu. Tên đăng nhập gõ gì cũng được.
+
+Lưu ý:
+- Link **đổi mỗi lần chạy**.
+- Link chỉ hoạt động khi máy tính đang bật và cửa sổ app đang mở.
+- Qua link công khai, video tải lên tối đa **95 MB** (giới hạn của Cloudflare miễn phí). Trên máy tính thì không giới hạn.
+
+## Cách khác: chạy trên Hugging Face Spaces
+
+App cần Python + ffmpeg nên **không chạy được trên GitHub Pages**. ⚠️ Hạn mức CPU miễn phí của Hugging Face hiện thường không đủ để chạy (Space sẽ bị *Paused*), nên thường phải mua gói **PRO** (~9 USD/tháng). Bạn **chỉ nhập key ở GitHub**. GitHub Action sẽ tự tạo Space, chép key sang Space và đưa code lên.
 
 **Bước 1. Tạo token Hugging Face**
 1. Đăng ký tài khoản tại <https://huggingface.co/join>.
@@ -60,13 +78,13 @@ Vào repo này trên GitHub, chọn **Settings → Secrets and variables → Act
 
 **Bước 3. Chạy**
 
-Vào tab **Actions → Deploy to Hugging Face Space → Run workflow**. Đợi khoảng 1 phút cho Action xong (dấu ✅), rồi thêm 3–5 phút để Space build. Sau đó mở:
+Vào tab **Actions → Deploy to Hugging Face Space → Run workflow**. Workflow chỉ chạy khi bạn bấm nút này, không tự chạy mỗi lần đẩy code. Đợi khoảng 1 phút cho Action xong (dấu ✅), rồi thêm 3–5 phút để Space build. Sau đó mở:
 
 `https://huggingface.co/spaces/ten-tai-khoan-hugging-face/highlight-ai`
 
 Trình duyệt sẽ hỏi tên đăng nhập (gõ gì cũng được) và mật khẩu (`APP_PASSWORD`).
 
-Từ đó, mỗi lần đẩy code lên `main`, web sẽ tự cập nhật. Muốn đổi key thì sửa secret trên GitHub rồi chạy lại workflow. Muốn đặt tên Space khác thì thêm **Variable** `HF_SPACE` = `ten-tai-khoan/ten-space`.
+Muốn cập nhật web sau khi sửa code, chạy lại workflow. Muốn đổi key thì sửa secret trên GitHub rồi chạy lại workflow. Muốn đặt tên Space khác thì thêm **Variable** `HF_SPACE` = `ten-tai-khoan/ten-space`.
 
 **Lưu ý khi chạy trên web:** Space miễn phí sẽ "ngủ" nếu 48 giờ không ai dùng (mở lại sẽ tự chạy, mất khoảng 1 phút). Video trên máy chủ bị xoá khi Space khởi động lại và tự xoá sau 24 giờ (`JOB_TTL_HOURS`), nên nhớ tải video về ngay. Mỗi lần chỉ xuất 1 video, người sau sẽ tự xếp hàng chờ.
 
@@ -98,7 +116,7 @@ app/
   styles.py     Các phong cách bình luận (sửa/thêm phong cách ở đây)
   tts.py        Giọng đọc ElevenLabs / Edge TTS
   render.py     Ghép giọng, giảm tiếng game, phụ đề, khung 9:16/16:9 nền mờ
-  media.py      Hàm tiện ích ffmpeg/ffprobe
+  media.py      Hàm tiện ích ffmpeg/ffprobe, tự chọn card đồ hoạ để xuất video
 static/
   index.html    Giao diện web
 ```

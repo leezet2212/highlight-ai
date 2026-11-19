@@ -1,4 +1,5 @@
-# Đưa app lên web (Hugging Face Space) mỗi lần đẩy code lên main.
+# Đưa app lên web (Hugging Face Space). Chạy bằng tay: tab Actions → Run workflow.
+# (Không tự chạy khi push vì hạn mức CPU miễn phí của Hugging Face thường không đủ.)
 # Chỉ cần cấu hình 1 lần trong GitHub repo: Settings → Secrets and variables → Actions → Secrets
 #   HF_TOKEN            token Hugging Face quyền "Write"     (bắt buộc)
 #   GEMINI_API_KEY      key Gemini                           (bắt buộc để AI viết lời bình)
@@ -9,8 +10,6 @@
 name: Deploy to Hugging Face Space
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:

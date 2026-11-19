@@ -12,7 +12,7 @@ import math
 import os
 from pathlib import Path
 
-from .media import VideoInfo, audio_duration, run
+from .media import MediaError, VideoInfo, audio_duration, run, video_encoders
 from .styles import edge_rate
 from .tts import synthesize
 
@@ -237,14 +237,23 @@ def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts
         a = f"[1:a]volume={voice_volume:.3f},alimiter=limit=0.95[aout]"
 
     output = job_dir / "output.mp4"
-    run([
-        "ffmpeg", "-y", "-v", "error", "-i", str(src), "-i", voice_wav.name,
-        "-filter_complex", v + ";" + a,
-        "-map", "[vout]", "-map", "[aout]", "-t", f"{total:.3f}",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", output.name,
-    ], cwd=job_dir)
+    encoders = video_encoders()
+    for idx, (encoder, enc_args) in enumerate(encoders):
+        try:
+            run([
+                "ffmpeg", "-y", "-v", "error", "-i", str(src), "-i", voice_wav.name,
+                "-filter_complex", v + ";" + a,
+                "-map", "[vout]", "-map", "[aout]", "-t", f"{total:.3f}",
+                "-c:v", encoder, *enc_args,
+                "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", output.name,
+            ], cwd=job_dir)
+            break
+        except MediaError:
+            if idx == len(encoders) - 1:
+                raise
+            # GPU encoder failed on this video (driver/size limits): use the CPU.
+            on_progress("Card đồ hoạ lỗi, đang xuất lại bằng CPU...")
 
-    return {"width": W, "height": H, "duration": round(total, 2),
+    return {"width": W, "height": H, "duration": round(total, 2), "encoder": encoder,
             "lines": [{k: (round(v, 2) if isinstance(v, float) else v)
                        for k, v in ln.items() if k != "clip"} for ln in lines]}
