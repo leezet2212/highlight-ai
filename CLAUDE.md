@@ -79,6 +79,7 @@ Trạng thái job nằm trong dict `JOBS` (bộ nhớ) và được ghi ra `job.
 ## Việc hay gặp
 
 - **Thêm phong cách bình luận**: chỉ thêm một mục vào `STYLES` trong `app/styles.py` (`label`, `prompt`, `edge_rate`). Giao diện tự hiện.
+- **Phong cách học từ video mẫu**: `POST /api/style-samples` (video có tiếng, ≤5 phút) → thread nền `script_ai.analyze_style()` (Gemini nghe video, trả `StyleProfile`; `normalize_profile()` báo lỗi nếu không có giọng bình luận) → lưu `styles.CUSTOM["mau_<id>"]` vào `data/styles/styles.json` (không bị TTL xoá), video mẫu xoá ngay. Tiến độ ở `SAMPLE_TASKS` (bộ nhớ), hỏi bằng `GET /api/style-samples/{id}`. Sửa/xoá: `PUT`/`DELETE /api/styles/{key}` (chỉ phong cách đã học). Luôn đi qua `styles.get_style()` / `style_prompt()` / `edge_rate()` / `all_labels()` thay vì đọc `STYLES` trực tiếp, để phong cách đã học dùng được ở mọi chỗ. `style_prompt()` thêm câu ví dụ kèm dặn không chép nguyên văn. Chỉ học cách viết lời bình – không làm nhái giọng nói người thật.
 - **Thêm khung hình xuất**: thêm vào `frame_size()` trong `render.py` và thêm một ô chọn `name="aspect"` trong `index.html`.
 - **Thêm nhà cung cấp giọng**: thêm hàm `synth_xxx()` và nhánh trong `synthesize()` + `list_voices()` ở `tts.py`, thêm `<option>` trong `#provider` ở `index.html`.
 - **Đổi giao diện**: tất cả nằm trong `static/index.html` (CSS biến ở `:root`, JS ở cuối file). Không thêm framework/bước build.

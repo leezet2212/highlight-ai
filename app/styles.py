@@ -59,9 +59,32 @@ STYLES: dict[str, dict] = {
 }
 
 
+# Styles learned from the user's sample videos, keyed "mau_<id>". Loaded and
+# saved by the server (data/styles/styles.json).
+CUSTOM: dict[str, dict] = {}
+
+PACE_RATE = {"cham": "-5%", "vua": "+5%", "nhanh": "+15%"}
+
+
+def get_style(key: str) -> dict:
+    return STYLES.get(key) or CUSTOM.get(key) or STYLES["hai_huoc"]
+
+
 def style_prompt(key: str) -> str:
-    return STYLES.get(key, STYLES["hai_huoc"])["prompt"]
+    st = get_style(key)
+    text = st["prompt"]
+    if st.get("examples"):
+        lines = "\n".join(f"- {e}" for e in st["examples"][:5])
+        text += ("\nVí dụ câu đúng phong cách này (chỉ để cảm nhận giọng văn – KHÔNG lặp lại "
+                 f"nguyên văn, hãy viết câu mới hợp với trận đấu):\n{lines}")
+    return text
 
 
 def edge_rate(key: str) -> str:
-    return STYLES.get(key, STYLES["hai_huoc"])["edge_rate"]
+    return get_style(key).get("edge_rate", "+0%")
+
+
+def all_labels() -> dict[str, str]:
+    labels = {k: v["label"] for k, v in STYLES.items()}
+    labels.update({k: v["label"] for k, v in CUSTOM.items()})
+    return labels

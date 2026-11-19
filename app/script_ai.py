@@ -40,6 +40,28 @@ class PostsOnly(BaseModel):
     posts: Posts
 
 
+class StyleProfile(BaseModel):
+    has_commentary: bool
+    name: str
+    summary: str
+    prompt: str
+    examples: list[str]
+    pace: str
+
+
+STYLE_PROMPT = """Đây là một video MẪU có lời bình luận (thường là game, có thể là Liên Quân hoặc nội dung khác).
+Hãy NGHE KỸ giọng bình luận và phân tích PHONG CÁCH bình luận để một AI khác viết lời bình mới theo đúng phong cách đó cho video game Liên Quân Mobile.
+
+Trả về JSON:
+- "has_commentary": true nếu video có người bình luận/lồng tiếng rõ ràng; false nếu chỉ có nhạc, tiếng game hoặc im lặng.
+- "name": tên ngắn gọn cho phong cách (dưới 30 ký tự), ví dụ "BLV hài miền Tây", "Cà khịa nhẹ nhàng". Không dùng tên thật của người trong video.
+- "summary": 1-2 câu mô tả phong cách cho người dùng đọc.
+- "prompt": HƯỚNG DẪN chi tiết (6-10 gạch đầu dòng, tiếng Việt) để AI khác bắt chước, gồm: giọng điệu và mức độ hài/nghiêm túc; nhịp độ (câu ngắn hay dài, dồn dập hay thong thả, có khoảng lặng không); cách mở đầu và kết thúc video; kiểu chơi chữ, so sánh, phóng đại; cách xưng hô với người xem và với người chơi; phản ứng khi pha hay, khi chết, khi thua; mức dùng thuật ngữ/tiếng lóng game; phương ngữ vùng miền nếu có. Chỉ mô tả KIỂU câu cửa miệng (tối đa vài từ), không chép nguyên câu dài.
+- "examples": 3-5 câu ví dụ MỚI do bạn tự viết theo đúng phong cách đó cho tình huống Liên Quân (không chép lại câu trong video mẫu).
+- "pace": tốc độ nói: "cham", "vua" hoặc "nhanh".
+"""
+
+
 POSTS_RULES = """Viết thêm "posts": nội dung đăng bài cho từng mạng xã hội, cùng giọng văn với phong cách bình luận, bám đúng diễn biến trận:
 - "tiktok": "title" để trống; "caption" 1-2 câu ngắn (dưới 150 ký tự) gây tò mò, được dùng emoji; "hashtags" 4-6 cái.
 - "facebook": "title" để trống; "caption" 2-4 câu kể lại pha hay/hài, kết bằng câu hỏi kéo bình luận, được dùng emoji; "hashtags" 3-5 cái.
@@ -89,13 +111,7 @@ def _state_name(f) -> str:
     return str(getattr(st, "name", st) or "").upper()
 
 
-def generate_script(video: Path, duration: float, style: str, notes: str,
-                    on_progress=lambda msg: None) -> dict:
-    from google.genai import types
-
-    client = _client()
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-
+def _upload_video(client, video: Path, on_progress):
     on_progress("Đang tải video lên Gemini...")
     try:
         uploaded = client.files.upload(file=str(video))
@@ -111,6 +127,60 @@ def generate_script(video: Path, duration: float, style: str, notes: str,
         uploaded = client.files.get(name=uploaded.name)
     if _state_name(uploaded).endswith("FAILED"):
         raise ScriptError("Gemini không đọc được video này.")
+    return uploaded
+
+
+def analyze_style(video: Path, on_progress=lambda msg: None) -> dict:
+    """Listen to a sample video's commentary and describe its style as a reusable prompt."""
+    from google.genai import types
+
+    client = _client()
+    uploaded = _upload_video(client, video, on_progress)
+    on_progress("AI đang nghe và học phong cách bình luận...")
+    try:
+        resp = client.models.generate_content(
+            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+            contents=[uploaded, STYLE_PROMPT],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json", response_schema=StyleProfile, temperature=0.7),
+        )
+        data = json.loads(resp.text)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ScriptError("Gemini trả về kết quả phân tích không hợp lệ, hãy thử lại.") from exc
+    except Exception as exc:
+        raise ScriptError(gemini_error_message(exc)) from exc
+    finally:
+        try:
+            client.files.delete(name=uploaded.name)
+        except Exception:
+            pass
+    return normalize_profile(data)
+
+
+def normalize_profile(data: dict) -> dict:
+    if not data.get("has_commentary", True):
+        raise ScriptError("Không nghe thấy giọng bình luận trong video mẫu – hãy chọn video có người "
+                          "bình luận/lồng tiếng rõ ràng.")
+    prompt = str(data.get("prompt", "")).strip()
+    if not prompt:
+        raise ScriptError("AI chưa rút ra được phong cách từ video này, hãy thử video khác.")
+    pace = str(data.get("pace", "vua")).strip().lower()
+    return {
+        "name": (str(data.get("name", "")).strip() or "Phong cách từ video mẫu")[:40],
+        "summary": str(data.get("summary", "")).strip()[:400],
+        "prompt": prompt[:4000],
+        "examples": [str(e).strip()[:200] for e in (data.get("examples") or []) if str(e).strip()][:5],
+        "pace": pace if pace in ("cham", "vua", "nhanh") else "vua",
+    }
+
+
+def generate_script(video: Path, duration: float, style: str, notes: str,
+                    on_progress=lambda msg: None) -> dict:
+    from google.genai import types
+
+    client = _client()
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    uploaded = _upload_video(client, video, on_progress)
 
     on_progress("AI đang xem trận đấu và viết lời bình...")
     prompt = PROMPT.format(

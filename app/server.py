@@ -13,7 +13,7 @@ import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -22,12 +22,17 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
 from . import media, render as renderer, script_ai, tts  # noqa: E402
-from .styles import STYLES, edge_rate  # noqa: E402
+from . import styles  # noqa: E402
+from .styles import edge_rate  # noqa: E402
 
 DATA = Path(os.getenv("DATA_DIR") or ROOT / "data") / "jobs"
 DATA.mkdir(parents=True, exist_ok=True)
 TTS_CACHE = DATA.parent / "tts_cache"
 LOGO = DATA.parent / "assets" / "logo.png"     # one channel logo, reused for every video
+STYLES_DIR = DATA.parent / "styles"            # styles learned from sample videos (kept forever)
+STYLES_FILE = STYLES_DIR / "styles.json"
+MAX_SAMPLE_SECONDS = 300
+SAMPLE_TASKS: dict[str, dict] = {}
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "500"))
 JOB_TTL_HOURS = float(os.getenv("JOB_TTL_HOURS", "24"))
 APP_PASSWORD = os.getenv("APP_PASSWORD", "").strip()
@@ -136,6 +141,38 @@ restore_jobs()
 tts.CACHE_DIR = TTS_CACHE
 
 
+def load_custom_styles() -> None:
+    styles.CUSTOM.clear()
+    if STYLES_FILE.exists():
+        try:
+            styles.CUSTOM.update(json.loads(STYLES_FILE.read_text("utf-8")))
+        except (OSError, json.JSONDecodeError):
+            traceback.print_exc()
+
+
+def save_custom_styles() -> None:
+    STYLES_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = STYLES_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(styles.CUSTOM, ensure_ascii=False, indent=1), "utf-8")
+    tmp.replace(STYLES_FILE)
+
+
+def style_entry(name: str, profile: dict) -> dict:
+    return {
+        "label": f"🎧 {name}",
+        "name": name,
+        "summary": profile.get("summary", ""),
+        "prompt": profile["prompt"],
+        "examples": profile.get("examples", []),
+        "pace": profile.get("pace", "vua"),
+        "edge_rate": styles.PACE_RATE.get(profile.get("pace", "vua"), "+5%"),
+        "created": int(time.time()),
+    }
+
+
+load_custom_styles()
+
+
 # ------------------------------------------------------------------ API
 
 @app.get("/api/config")
@@ -143,7 +180,7 @@ def config():
     return {
         "gemini": bool(os.getenv("GEMINI_API_KEY", "").strip()),
         "elevenlabs": bool(tts.eleven_key()),
-        "styles": {k: v["label"] for k, v in STYLES.items()},
+        "styles": styles.all_labels(),
         "max_upload_mb": MAX_UPLOAD_MB,
         "logo": LOGO.exists(),
     }
@@ -311,6 +348,100 @@ def make_video(job_id: str, req: RenderReq):
 
     background(job_id, "render", task)
     return public(job_id)
+
+
+# ------------------------------------------------------------------ sample styles
+
+@app.post("/api/style-samples")
+async def upload_style_sample(file: UploadFile = File(...), name: str = Form("")):
+    """A video that already has commentary the user likes → learn its style."""
+    sid = uuid.uuid4().hex[:10]
+    d = STYLES_DIR / "samples" / sid
+    d.mkdir(parents=True)
+    src = d / f"source{Path(file.filename or 'mau.mp4').suffix.lower() or '.mp4'}"
+    size = 0
+    with src.open("wb") as fh:
+        while chunk := await file.read(1 << 20):
+            size += len(chunk)
+            if size > MAX_UPLOAD_MB << 20:
+                fh.close()
+                shutil.rmtree(d, ignore_errors=True)
+                raise HTTPException(413, f"Video mẫu quá lớn (tối đa {MAX_UPLOAD_MB} MB).")
+            fh.write(chunk)
+    try:
+        info = media.probe(src)
+    except media.MediaError:
+        shutil.rmtree(d, ignore_errors=True)
+        raise HTTPException(400, "Không đọc được video mẫu.")
+    if not info.has_audio:
+        shutil.rmtree(d, ignore_errors=True)
+        raise HTTPException(400, "Video mẫu không có tiếng – cần video có giọng bình luận để học phong cách.")
+    if info.duration > MAX_SAMPLE_SECONDS:
+        shutil.rmtree(d, ignore_errors=True)
+        raise HTTPException(400, "Video mẫu dài quá 5 phút – hãy cắt một đoạn bình luận tiêu biểu ngắn hơn.")
+
+    SAMPLE_TASKS[sid] = {"id": sid, "status": "running", "progress": "Đang chuẩn bị video mẫu...",
+                         "error": None, "style_key": None}
+
+    def work():
+        task = SAMPLE_TASKS[sid]
+        try:
+            small = d / "sample.mp4"
+            media.make_preview(src, small)          # smaller upload, keeps the audio
+            profile = script_ai.analyze_style(small, lambda m: task.update(progress=m))
+            key = f"mau_{sid}"
+            styles.CUSTOM[key] = style_entry(name.strip()[:40] or profile["name"], profile)
+            save_custom_styles()
+            task.update(status="done", progress="Xong!", style_key=key)
+        except Exception as exc:
+            traceback.print_exc()
+            task.update(status="error", error=str(exc))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)    # only the learned style is kept
+
+    threading.Thread(target=work, daemon=True).start()
+    return SAMPLE_TASKS[sid]
+
+
+@app.get("/api/style-samples/{sid}")
+def style_sample_status(sid: str):
+    if sid not in SAMPLE_TASKS:
+        raise HTTPException(404, "Không tìm thấy lượt học phong cách này.")
+    return SAMPLE_TASKS[sid]
+
+
+@app.get("/api/styles")
+def list_custom_styles():
+    return styles.CUSTOM
+
+
+class StyleEdit(BaseModel):
+    name: str | None = None
+    prompt: str | None = None
+
+
+@app.put("/api/styles/{key}")
+def edit_style(key: str, req: StyleEdit):
+    st = styles.CUSTOM.get(key)
+    if not st:
+        raise HTTPException(404, "Chỉ sửa được phong cách học từ video mẫu.")
+    if req.name is not None and req.name.strip():
+        st["name"] = req.name.strip()[:40]
+        st["label"] = f"🎧 {st['name']}"
+    if req.prompt is not None:
+        if not req.prompt.strip():
+            raise HTTPException(400, "Hướng dẫn phong cách không được để trống.")
+        st["prompt"] = req.prompt.strip()[:4000]
+    save_custom_styles()
+    return st
+
+
+@app.delete("/api/styles/{key}")
+def delete_style(key: str):
+    if styles.CUSTOM.pop(key, None) is None:
+        raise HTTPException(404, "Không tìm thấy phong cách này.")
+    save_custom_styles()
+    return {"ok": True}
 
 
 @app.get("/api/logo")

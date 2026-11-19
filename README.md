@@ -6,6 +6,7 @@ Tải video highlight (chưa có tiếng bình luận) lên → AI **xem trận 
 
 - 🤖 **AI xem video thật** (Google Gemini, miễn phí) và viết lời bình bám theo từng mốc thời gian.
 - 🎭 **7 phong cách**: Hài hước, BLV nghiêm túc, BLV eSports gào thét, Cà khịa, Drama, Phim tài liệu động vật, hoặc tự viết yêu cầu.
+- 🎧 **Học phong cách từ video mẫu**: tải lên một video đã có lời bình bạn thích (dưới 5 phút), AI nghe và rút ra cách bình luận (giọng điệu, nhịp, kiểu đùa, cách mở/kết...) rồi lưu thành phong cách mới, sửa được. Chỉ học cách viết, không sao chép giọng nói hay chép nguyên văn; video mẫu bị xoá ngay sau khi học.
 - ✍️ **Sửa kịch bản** trước khi xuất: đổi lời, chỉnh thời gian, thêm/xoá câu, bấm ▶ để xem đúng đoạn đó.
 - 🔊 **Nghe thử giọng từng câu** trước khi xuất cả video. Câu đã nghe thử được dùng lại lúc xuất, không tốn thêm lượt ElevenLabs.
 - 📣 **Caption + hashtag tự động** cho TikTok, Facebook, YouTube Shorts (có cả tiêu đề YouTube). AI viết cùng lúc với lời bình, sửa được, bấm là copy. Sửa kịch bản xong có thể bấm *AI viết lại caption*.

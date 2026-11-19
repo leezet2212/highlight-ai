@@ -287,3 +287,63 @@ def test_logo_upload_and_delete(client, tmp_path):
     bad = c.post("/api/logo", files={"file": ("x.png", b"not an image", "image/png")})
     assert bad.status_code == 400
     assert c.delete("/api/logo").status_code == 200 and c.get("/api/logo").status_code == 404
+
+
+# --------------------------------------------------------------- learn style from a sample video
+
+FAKE_PROFILE = {"has_commentary": True, "name": "BLV miền Tây", "summary": "Hài, giọng miền Tây.",
+                "prompt": "- Xưng 'tui', gọi người xem là 'bà con'\n- Câu ngắn, dồn dập", "pace": "nhanh",
+                "examples": ["Trời đất ơi bà con ơi!", "Pha này tui chịu luôn á"]}
+
+
+def test_normalize_profile_rejects_videos_without_commentary():
+    from app import script_ai
+    with pytest.raises(script_ai.ScriptError, match="Không nghe thấy giọng bình luận"):
+        script_ai.normalize_profile({**FAKE_PROFILE, "has_commentary": False})
+    assert script_ai.normalize_profile({**FAKE_PROFILE, "pace": "??"})["pace"] == "vua"
+
+
+def test_learn_style_from_sample_video(client, sample_video, monkeypatch, tmp_path):
+    c, server = client
+    seen = {}
+    monkeypatch.setattr(server.script_ai, "analyze_style",
+                        lambda video, progress: (seen.setdefault("video", video),
+                                                 server.script_ai.normalize_profile(FAKE_PROFILE))[1])
+    r = c.post("/api/style-samples", data={"name": ""},
+               files={"file": ("mau.mp4", sample_video.read_bytes(), "video/mp4")})
+    assert r.status_code == 200, r.text
+    sid = r.json()["id"]
+    for _ in range(100):
+        task = c.get(f"/api/style-samples/{sid}").json()
+        if task["status"] != "running":
+            break
+        time.sleep(0.1)
+    assert task["status"] == "done", task["error"]
+    key = task["style_key"]
+    assert seen["video"].name == "sample.mp4"                         # the small copy was analysed
+    assert not (server.STYLES_DIR / "samples" / sid).exists()        # sample video deleted afterwards
+    assert c.get("/api/config").json()["styles"][key] == "🎧 BLV miền Tây"
+
+    # The learned style is what the AI is told when writing commentary.
+    prompt = server.styles.style_prompt(key)
+    assert "bà con" in prompt and "Trời đất ơi bà con ơi!" in prompt and "KHÔNG lặp lại" in prompt
+    assert server.styles.edge_rate(key) == "+15%"
+
+    # Edit, then survive a server restart, then delete.
+    r = c.put(f"/api/styles/{key}", json={"name": "Miền Tây vui", "prompt": "- Nói chậm rãi"})
+    assert r.status_code == 200 and r.json()["label"] == "🎧 Miền Tây vui"
+    assert c.put(f"/api/styles/{key}", json={"prompt": "  "}).status_code == 400
+    server.load_custom_styles()
+    assert server.styles.CUSTOM[key]["prompt"] == "- Nói chậm rãi"
+    assert c.delete(f"/api/styles/{key}").status_code == 200
+    assert key not in c.get("/api/config").json()["styles"]
+    assert c.put("/api/styles/hai_huoc", json={"name": "x"}).status_code == 404   # built-ins are read-only
+
+
+def test_sample_video_needs_sound(client, tmp_path):
+    c, _ = client
+    silent = tmp_path / "silent.mp4"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:duration=2",
+                    "-c:v", "libx264", str(silent)], check=True)
+    r = c.post("/api/style-samples", files={"file": ("s.mp4", silent.read_bytes(), "video/mp4")})
+    assert r.status_code == 400 and "không có tiếng" in r.json()["detail"]
