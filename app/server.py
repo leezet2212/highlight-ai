@@ -27,6 +27,7 @@ from .styles import STYLES, edge_rate  # noqa: E402
 DATA = Path(os.getenv("DATA_DIR") or ROOT / "data") / "jobs"
 DATA.mkdir(parents=True, exist_ok=True)
 TTS_CACHE = DATA.parent / "tts_cache"
+LOGO = DATA.parent / "assets" / "logo.png"     # one channel logo, reused for every video
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "500"))
 JOB_TTL_HOURS = float(os.getenv("JOB_TTL_HOURS", "24"))
 APP_PASSWORD = os.getenv("APP_PASSWORD", "").strip()
@@ -144,6 +145,7 @@ def config():
         "elevenlabs": bool(tts.eleven_key()),
         "styles": {k: v["label"] for k, v in STYLES.items()},
         "max_upload_mb": MAX_UPLOAD_MB,
+        "logo": LOGO.exists(),
     }
 
 
@@ -274,6 +276,13 @@ class RenderReq(BaseModel):
     mute_original: bool = False
     subtitles: bool = True
     title: str = ""
+    enhance: bool = False
+    watermark_text: str = ""
+    watermark_pos: str = "tr"
+    watermark_opacity: float = 0.85
+    use_logo: bool = False
+    logo_size: float = 0.16
+    blur_boxes: list[dict] = []
 
 
 @app.post("/api/jobs/{job_id}/render")
@@ -285,13 +294,15 @@ def make_video(job_id: str, req: RenderReq):
     def task(progress):
         script = dict(job.get("script") or {})
         script["segments"] = segs
-        update(job_id, script=script, result=None)
+        # Remember the boxes drawn on this video so they come back after a reload.
+        update(job_id, script=script, result=None, blur_boxes=req.blur_boxes[:10])
         if not RENDER_SLOTS.acquire(blocking=False):
             progress("Đang có video khác được xuất, đang chờ tới lượt...")
             RENDER_SLOTS.acquire()
         try:
-            result = renderer.render(d, d / job["source"], job["info_obj"], segs,
-                                     req.model_dump(), progress)
+            opts = req.model_dump()
+            opts["logo_path"] = str(LOGO) if req.use_logo and LOGO.exists() else None
+            result = renderer.render(d, d / job["source"], job["info_obj"], segs, opts, progress)
         finally:
             RENDER_SLOTS.release()
         result["aspect"] = req.aspect
@@ -300,6 +311,37 @@ def make_video(job_id: str, req: RenderReq):
 
     background(job_id, "render", task)
     return public(job_id)
+
+
+@app.get("/api/logo")
+def get_logo():
+    if not LOGO.exists():
+        raise HTTPException(404, "Chưa có logo.")
+    return FileResponse(LOGO, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/logo")
+async def upload_logo(file: UploadFile = File(...)):
+    data = await file.read((5 << 20) + 1)
+    if len(data) > 5 << 20:
+        raise HTTPException(413, "Logo quá lớn (tối đa 5 MB).")
+    LOGO.parent.mkdir(parents=True, exist_ok=True)
+    tmp = LOGO.parent / f"upload-{uuid.uuid4().hex}{Path(file.filename or 'logo.png').suffix.lower()}"
+    tmp.write_bytes(data)
+    try:
+        media.save_logo(tmp, LOGO)
+    except media.MediaError:
+        raise HTTPException(400, "Không đọc được ảnh logo – hãy dùng file PNG hoặc JPG.")
+    finally:
+        tmp.unlink(missing_ok=True)
+    w, h = media.image_size(LOGO)
+    return {"ok": True, "width": w, "height": h}
+
+
+@app.delete("/api/logo")
+def delete_logo():
+    LOGO.unlink(missing_ok=True)
+    return {"ok": True}
 
 
 @app.get("/api/jobs/{job_id}/preview")

@@ -80,6 +80,24 @@
   .mute-box { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #141720; }
   .disabled-look { opacity: .45; pointer-events: none; }
 
+  .player-wrap { position: relative; }
+  .player-wrap video { display: block; }
+  .box-layer { position: absolute; pointer-events: none; }
+  .box-layer.drawing { pointer-events: auto; cursor: crosshair; touch-action: none;
+                       outline: 2px dashed var(--accent); outline-offset: -2px; background: rgba(255,176,32,.06); }
+  .blur-box { position: absolute; border: 2px dashed #fff; border-radius: 4px;
+              backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); background: rgba(0,0,0,.15); }
+  .blur-box.temp { border-color: var(--accent); }
+  .blur-box button { position: absolute; top: -12px; right: -12px; pointer-events: auto; padding: 0;
+                     width: 26px; height: 26px; min-height: 0; min-width: 0; border-radius: 50%;
+                     background: var(--err); color: #fff; font-size: 13px; line-height: 26px; }
+  .tool-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .tool-row .on { background: var(--accent); color: #111; font-weight: 700; }
+  .logo-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .logo-row img { height: 40px; max-width: 120px; object-fit: contain; border-radius: 6px;
+                  background: repeating-conic-gradient(#2a2f3d 0 25%, #1b1f2a 0 50%) 0 0 / 12px 12px; }
+  .section-title { font-weight: 700; margin-bottom: 6px; }
+
   /* ------------------------------------------------------------ responsive */
   /* Grid/flex children default to min-width:auto, so one long <select> option
      (voice names) could stretch the whole page wider than a small phone. */
@@ -196,9 +214,17 @@
     <h2><span class="num">3</span> Xem &amp; sửa lời bình</h2>
     <div class="editor">
       <div class="sticky">
-        <video id="player" controls playsinline></video>
+        <div class="player-wrap" id="playerWrap">
+          <video id="player" controls playsinline></video>
+          <div class="box-layer" id="boxLayer"></div>
+        </div>
         <div class="muted" id="vidInfo" style="margin-top:6px"></div>
-        <button class="small" id="btnPlayerMute" style="margin-top:8px">🔊 Đang nghe tiếng video gốc</button>
+        <div class="tool-row">
+          <button class="small" id="btnPlayerMute">🔊 Đang nghe tiếng video gốc</button>
+          <button class="small" id="btnBlurMode">🔲 Che vùng trên video</button>
+          <button class="small hidden" id="btnBlurClear">🧹 Bỏ hết vùng che</button>
+        </div>
+        <div class="muted hidden" id="blurHelp" style="margin-top:6px">Kéo trên video để vẽ khung cần làm mờ (tên tài khoản, ID, logo cũ của bạn…). Bấm ✕ để xoá một khung. Xong thì bấm <b>✅ Xong</b>.</div>
       </div>
       <div>
         <div id="summary" class="summary hidden"></div>
@@ -260,6 +286,48 @@
       <label class="switch" id="duckBox"><input type="checkbox" id="duck" checked> Tự giảm tiếng game khi đang bình luận</label>
       <label class="switch"><input type="checkbox" id="subs" checked> Chèn phụ đề lên video</label>
     </div>
+
+    <div class="mute-box">
+      <label class="switch"><input type="checkbox" id="enhance"> ✨ <b>Làm nét video</b></label>
+      <div class="muted">Giảm nhoè, tăng độ sắc nét – hợp với video quay bị mờ. Không tạo thêm chi tiết đã mất; xuất lâu hơn một chút.</div>
+    </div>
+
+    <div class="mute-box">
+      <div class="section-title">🏷️ Chữ ký kênh</div>
+      <div class="row">
+        <div>
+          <label for="markText">Tên kênh / chữ ký (để trống nếu không cần)</label>
+          <input type="text" id="markText" maxlength="60" placeholder="VD: @BLV_BatOn">
+        </div>
+        <div>
+          <label for="markPos">Vị trí</label>
+          <select id="markPos">
+            <option value="tr">↗️ Góc trên phải</option>
+            <option value="tl">↖️ Góc trên trái</option>
+            <option value="br">↘️ Góc dưới phải</option>
+            <option value="bl">↙️ Góc dưới trái</option>
+          </select>
+        </div>
+        <div>
+          <label for="markOp">Độ rõ: <b id="markOpTxt">85%</b></label>
+          <input type="range" id="markOp" min="20" max="100" value="85" style="width:100%">
+        </div>
+      </div>
+      <div class="logo-row">
+        <img id="logoImg" class="hidden" alt="Logo kênh">
+        <label class="switch"><input type="checkbox" id="useLogo"> Chèn logo</label>
+        <button class="small" id="btnLogo">🖼️ Tải logo lên</button>
+        <button class="small hidden" id="btnLogoDel">🗑️ Xoá logo</button>
+        <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" hidden>
+      </div>
+      <div style="margin-top:8px" id="logoSizeBox">
+        <label for="logoSize">Cỡ logo: <b id="logoSizeTxt">16%</b></label>
+        <input type="range" id="logoSize" min="6" max="35" value="16" style="width:100%">
+      </div>
+      <div class="muted">Logo PNG nền trong suốt là đẹp nhất. Logo được lưu lại cho các video sau.</div>
+      <div id="logoErr" class="error hidden" style="margin-top:8px"></div>
+    </div>
+    <div class="muted" id="blurSummary" style="margin-top:10px"></div>
     <div style="margin-top:14px">
       <button class="primary" id="btnRender">🎬 Xuất video</button>
     </div>
@@ -331,6 +399,7 @@ async function api(path, opts = {}) {
 async function init() {
   cfg = await api("/api/config");
   $("maxMb").textContent = cfg.max_upload_mb;
+  loadPrefs(); refreshLogo();
   const warn = [];
   if (!cfg.gemini) warn.push("Chưa có <b>GEMINI_API_KEY</b> → AI chưa xem video được (vẫn có thể tự viết kịch bản).");
   if (!cfg.elevenlabs) warn.push("Chưa có <b>ELEVENLABS_API_KEY</b> → chỉ dùng được giọng Edge miễn phí.");
@@ -425,6 +494,7 @@ function loadJob(j) {
   job = j; localSet("jobId", j.id);
   const i = j.info;
   setupOriginalAudio(i.has_audio);
+  if (boxesJob !== j.id) { boxesJob = j.id; blurBoxes = (j.blur_boxes || []).map(b => ({ ...b })); drawBoxes(); }
   $("vidInfo").textContent = `${j.name} · ${i.width}×${i.height} (${i.orientation}) · ${fmt(i.duration)}${i.has_audio ? "" : " · không có tiếng"}`;
   const pl = $("player");
   if (!pl.src.endsWith(`/api/jobs/${j.id}/preview`)) pl.src = `/api/jobs/${j.id}/preview`;
@@ -670,6 +740,13 @@ $("btnRender").onclick = async () => {
     game_volume: $("gameVol").value / 100, voice_volume: $("voiceVol").value / 100,
     duck: $("duck").checked, subtitles: $("subs").checked, title: $("title").value,
     mute_original: $("muteOrig").checked,
+    enhance: $("enhance").checked,
+    watermark_text: $("markText").value.trim(),
+    watermark_pos: $("markPos").value,
+    watermark_opacity: $("markOp").value / 100,
+    use_logo: $("useLogo").checked && cfg.logo,
+    logo_size: $("logoSize").value / 100,
+    blur_boxes: blurBoxes,
   };
   try {
     show("stepResult", false);
@@ -686,6 +763,129 @@ function showResult(r) {
   $("dlSrt").href = `/api/jobs/${job.id}/srt${v}`;
   $("stepResult").scrollIntoView({ behavior: "smooth" });
 }
+
+// ---------------------------------------------------------------- blur boxes
+// Boxes are stored as fractions (0..1) of the source frame, so they stay on the
+// same spot whatever output frame (9:16, 16:9...) is exported.
+let blurBoxes = [], boxesJob = null, drawMode = false, drawStart = null, tempBox = null;
+
+function contentRect() {
+  const v = $("player"), W = v.clientWidth, H = v.clientHeight;
+  const vw = v.videoWidth || job?.info.width || 16, vh = v.videoHeight || job?.info.height || 9;
+  const sc = Math.min(W / vw, H / vh), w = vw * sc, h = vh * sc;
+  return { left: (W - w) / 2, top: (H - h) / 2, width: w, height: h };
+}
+
+function layoutBoxLayer() {
+  const r = contentRect(), l = $("boxLayer").style;
+  l.left = r.left + "px"; l.top = r.top + "px"; l.width = r.width + "px"; l.height = r.height + "px";
+}
+
+function boxHtml(b, extra = "") {
+  return `<div class="blur-box ${extra}" style="left:${b.x * 100}%;top:${b.y * 100}%;width:${b.w * 100}%;height:${b.h * 100}%">`;
+}
+
+function drawBoxes() {
+  $("boxLayer").innerHTML = blurBoxes.map((b, i) => boxHtml(b) + `<button data-delbox="${i}" title="Xoá vùng này">✕</button></div>`).join("")
+    + (tempBox ? boxHtml(tempBox, "temp") + "</div>" : "");
+  show("btnBlurClear", blurBoxes.length > 0);
+  $("blurSummary").textContent = blurBoxes.length
+    ? `🔲 Đang che ${blurBoxes.length} vùng trên video (vẽ ở bước 3).`
+    : "🔲 Chưa che vùng nào – nếu cần làm mờ tên/ID/logo cũ, bấm “Che vùng trên video” ở bước 3.";
+}
+
+function setDrawMode(on) {
+  drawMode = on;
+  if (on) $("player").pause();
+  $("boxLayer").classList.toggle("drawing", on);
+  $("btnBlurMode").textContent = on ? "✅ Xong" : "🔲 Che vùng trên video";
+  $("btnBlurMode").classList.toggle("on", on);
+  show("blurHelp", on);
+  layoutBoxLayer();
+}
+
+function pointFrac(e) {
+  const r = $("boxLayer").getBoundingClientRect();
+  return { x: Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1),
+           y: Math.min(Math.max((e.clientY - r.top) / r.height, 0), 1) };
+}
+
+$("btnBlurMode").onclick = () => setDrawMode(!drawMode);
+$("btnBlurClear").onclick = () => { if (confirm("Bỏ hết các vùng che?")) { blurBoxes = []; drawBoxes(); } };
+$("boxLayer").addEventListener("click", (e) => {
+  const i = e.target.dataset.delbox;
+  if (i !== undefined) { e.stopPropagation(); blurBoxes.splice(+i, 1); drawBoxes(); }
+});
+$("boxLayer").addEventListener("pointerdown", (e) => {
+  if (!drawMode || e.target.dataset.delbox !== undefined) return;
+  if (blurBoxes.length >= 10) return alert("Tối đa 10 vùng che.");
+  e.preventDefault(); $("boxLayer").setPointerCapture(e.pointerId);
+  drawStart = pointFrac(e); tempBox = { ...drawStart, w: 0, h: 0 };
+});
+$("boxLayer").addEventListener("pointermove", (e) => {
+  if (!drawStart) return;
+  const p = pointFrac(e);
+  tempBox = { x: Math.min(p.x, drawStart.x), y: Math.min(p.y, drawStart.y),
+              w: Math.abs(p.x - drawStart.x), h: Math.abs(p.y - drawStart.y) };
+  drawBoxes();
+});
+const endDraw = () => {
+  if (!drawStart) return;
+  if (tempBox && tempBox.w > 0.02 && tempBox.h > 0.02)        // ignore accidental taps
+    blurBoxes.push(Object.fromEntries(Object.entries(tempBox).map(([k, v]) => [k, +v.toFixed(4)])));
+  drawStart = null; tempBox = null; drawBoxes();
+};
+$("boxLayer").addEventListener("pointerup", endDraw);
+$("boxLayer").addEventListener("pointercancel", endDraw);
+$("player").addEventListener("loadedmetadata", layoutBoxLayer);
+new ResizeObserver(layoutBoxLayer).observe($("player"));
+
+// ---------------------------------------------------------------- signature & logo
+const PREF_IDS = ["markText", "markPos", "markOp", "useLogo", "logoSize", "enhance"];
+
+function loadPrefs() {
+  let p = {}; try { p = JSON.parse(localStorage.getItem("hlPrefs") || "{}"); } catch {}
+  PREF_IDS.forEach(id => {
+    if (!(id in p)) return;
+    const el = $(id); if (el.type === "checkbox") el.checked = !!p[id]; else el.value = p[id];
+  });
+  $("markOpTxt").textContent = $("markOp").value + "%";
+  $("logoSizeTxt").textContent = $("logoSize").value + "%";
+}
+function savePrefs() {
+  const p = {}; PREF_IDS.forEach(id => { const el = $(id); p[id] = el.type === "checkbox" ? el.checked : el.value; });
+  localSet("hlPrefs", JSON.stringify(p));
+}
+PREF_IDS.forEach(id => $(id).addEventListener("change", savePrefs));
+$("markOp").oninput = () => { $("markOpTxt").textContent = $("markOp").value + "%"; };
+$("logoSize").oninput = () => { $("logoSizeTxt").textContent = $("logoSize").value + "%"; };
+
+function refreshLogo() {
+  const has = !!cfg.logo;
+  show("logoImg", has); show("btnLogoDel", has); show("logoSizeBox", has);
+  $("useLogo").disabled = !has;
+  if (!has) $("useLogo").checked = false;
+  if (has) $("logoImg").src = "/api/logo?t=" + Date.now();
+  $("btnLogo").textContent = has ? "🖼️ Đổi logo" : "🖼️ Tải logo lên";
+}
+$("btnLogo").onclick = () => $("logoFile").click();
+$("logoFile").onchange = async () => {
+  const f = $("logoFile").files[0]; if (!f) return;
+  err("logoErr");
+  const fd = new FormData(); fd.append("file", f);
+  try {
+    const r = await fetch("/api/logo", { method: "POST", body: fd });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.detail || `Lỗi ${r.status}`);
+    cfg.logo = true; refreshLogo(); $("useLogo").checked = true; savePrefs();
+  } catch (e) { err("logoErr", e.message); }
+  $("logoFile").value = "";
+};
+$("btnLogoDel").onclick = async () => {
+  if (!confirm("Xoá logo đã lưu?")) return;
+  await fetch("/api/logo", { method: "DELETE" });
+  cfg.logo = false; refreshLogo(); savePrefs();
+};
 
 init();
 </script>

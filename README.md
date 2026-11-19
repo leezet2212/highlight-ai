@@ -12,6 +12,9 @@ Tải video highlight (chưa có tiếng bình luận) lên → AI **xem trận 
 - 🗣️ **Giọng đọc**: ElevenLabs (cảm xúc, có gói miễn phí) hoặc Edge TTS (miễn phí hoàn toàn).
 - 🔉 **Tự giảm tiếng game** khi đang bình luận, chỉnh được âm lượng game và giọng.
 - 🔇 **Tắt hẳn tiếng video gốc** khi xuất (bỏ tiếng game/nhạc/giọng có sẵn). Lúc sửa lời bình có nút bật/tắt tiếng gốc để xem trước.
+- ✨ **Làm nét video** quay bị mờ (giảm nhoè + tăng sắc nét bằng FFmpeg; không tạo thêm chi tiết đã mất).
+- 🏷️ **Chữ ký kênh**: chèn tên kênh dạng chữ và/hoặc logo (PNG/JPG) ở góc video, chỉnh vị trí, độ rõ, cỡ logo. Logo và chữ ký được nhớ cho video sau.
+- 🔲 **Che vùng trên video**: kéo chuột/ngón tay vẽ khung lên video để làm mờ tên tài khoản, ID game, logo cũ của bạn. Chỉ dùng cho video của chính bạn – không dùng để xoá watermark của người khác.
 - 👥 **Giọng riêng cho từng câu**: mỗi câu chọn một giọng (ví dụ 2 BLV nam/nữ đối đáp). Câu để "Giọng chung" dùng giọng chọn ở bước Xuất video.
 - 📱 **Xuất nhiều khung hình**:
   - **Dọc 9:16** (TikTok, Reels, Shorts): video ngang được **giữ trọn màn hình game**, phía trên và dưới là nền mờ. Phụ đề nằm ở vùng trống bên dưới nên không che giao diện game, tiêu đề nằm ở trên.

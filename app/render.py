@@ -12,7 +12,7 @@ import math
 import os
 from pathlib import Path
 
-from .media import MediaError, VideoInfo, audio_duration, run, video_encoders
+from .media import MediaError, VideoInfo, audio_duration, image_size, run, video_encoders
 from .styles import edge_rate
 from .tts import synthesize
 
@@ -90,7 +90,8 @@ def subtitle_cues(lines: list[dict], max_words: int) -> list[tuple[float, float,
     return cues
 
 
-def write_ass(path: Path, cues, lay: dict, title: str, total: float, font: str) -> None:
+def write_ass(path: Path, cues, lay: dict, title: str, total: float, font: str,
+              mark: dict | None = None) -> None:
     W, H = lay["W"], lay["H"]
     portrait = H > W
     size = round((0.034 if portrait else 0.05) * H)
@@ -112,6 +113,7 @@ ScaledBorderAndShadow: yes
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Sub,{font},{size},&H00FFFFFF,&H0000FFFF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,{max(3, size // 12)},2,{align},{round(W * 0.06)},{round(W * 0.06)},{margin_v},1
 Style: Title,{font},{round(size * 1.15)},&H0000E5FF,&H0000FFFF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,{max(3, size // 10)},2,5,{round(W * 0.05)},{round(W * 0.05)},0,1
+Style: Mark,{font},{round(size * 0.72)},&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,0,0,1,{max(2, size // 18)},1,5,0,0,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -121,6 +123,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         cy = lay["fy"] // 2 if lay["fy"] >= size * 3 else round(H * 0.08)
         events.append(f"Dialogue: 1,{ass_time(0)},{ass_time(total)},Title,,0,0,0,,"
                       f"{{\\pos({W // 2},{cy})}}{ass_escape(title.strip())}")
+    if mark and mark.get("text"):
+        # Channel signature in a corner; alpha byte: 00 = opaque, FF = invisible.
+        alpha = f"{round(255 * (1 - mark['opacity'])):02X}"
+        events.append(f"Dialogue: 2,{ass_time(0)},{ass_time(total)},Mark,,0,0,0,,"
+                      f"{{\\an{mark['an']}\\pos({mark['x']},{mark['y']})\\alpha&H{alpha}&}}"
+                      f"{ass_escape(mark['text'])}")
     for start, end, text in cues:
         # Small pop-in animation for each chunk.
         anim = "{\\fscx85\\fscy85\\t(0,120,\\fscx100\\fscy100)}"
@@ -133,6 +141,97 @@ def write_srt(path: Path, lines: list[dict]) -> None:
     for i, ln in enumerate(lines, 1):
         out.append(f"{i}\n{srt_time(ln['start'])} --> {srt_time(ln['end'])}\n{ln['text']}\n")
     path.write_text("\n".join(out), encoding="utf-8")
+
+
+# ---------------------------------------------------------------- picture options
+
+CORNERS = {"tl", "tr", "bl", "br"}
+ENHANCE_PRE = "hqdn3d=1.5:1.5:6:6"            # light denoise before upscaling
+ENHANCE_POST = "unsharp=5:5:0.9:5:5:0.0"      # then sharpen edges
+
+
+def floor_even(x: float) -> int:
+    return max(0, int(x) // 2 * 2)
+
+
+def blur_box_px(box: dict, w: int, h: int) -> tuple[int, int, int, int] | None:
+    """Box given as fractions of the source frame → even pixel rect, or None if too small."""
+    try:
+        fx, fy = (min(max(float(box[k]), 0.0), 1.0) for k in ("x", "y"))
+        fw, fh = (min(max(float(box[k]), 0.0), 1.0) for k in ("w", "h"))
+    except (KeyError, TypeError, ValueError):
+        return None
+    x, y = floor_even(fx * w), floor_even(fy * h)
+    bw, bh = floor_even(min(fw, 1 - fx) * w), floor_even(min(fh, 1 - fy) * h)
+    bw, bh = min(bw, w - x), min(bh, h - y)
+    if bw < 8 or bh < 8:
+        return None
+    return x, y, bw, bh
+
+
+def mark_position(lay: dict, corner: str, logo_h: int, logo_w: int) -> dict:
+    """Where the logo (top-left px) and the text signature (ASS \\an + \\pos) go."""
+    W, H = lay["W"], lay["H"]
+    m = round(min(W, H) * 0.035)
+    gap = round(m * 0.4)
+    left, top = corner in ("tl", "bl"), corner in ("tl", "tr")
+    logo_x = m if left else W - m - logo_w
+    logo_y = m if top else H - m - logo_h
+    tx = m if left else W - m
+    if top:
+        ty, an = m + (logo_h + gap if logo_h else 0), 7 if left else 9
+    else:
+        ty, an = H - m - (logo_h + gap if logo_h else 0), 1 if left else 3
+    return {"logo_x": logo_x, "logo_y": logo_y, "x": tx, "y": ty, "an": an}
+
+
+def build_video_filter(lay: dict, info: VideoInfo, *, enhance: bool, blur_boxes: list,
+                       logo: dict | None, tail: float, use_ass: bool) -> str:
+    """ffmpeg filtergraph producing [vout]. Input 0 = video, input 2 = logo (if any)."""
+    W, H, fw, fh, fx, fy = (lay[k] for k in ("W", "H", "fw", "fh", "fx", "fy"))
+    parts, cur = [], "0:v"
+
+    # 1. Blur the user's boxes on the source frame, so they follow the video into any layout.
+    for i, box in enumerate(blur_boxes[:10]):
+        px = blur_box_px(box, info.width, info.height)
+        if not px:
+            continue
+        x, y, bw, bh = px
+        r = max(1, min(24, bw // 4, bh // 4))     # chroma plane is half size: radius <= w/4
+        parts.append(f"[{cur}]split=2[bm{i}][bc{i}];[bc{i}]crop={bw}:{bh}:{x}:{y},"
+                     f"boxblur={r}:3[bb{i}];[bm{i}][bb{i}]overlay={x}:{y}[bs{i}]")
+        cur = f"bs{i}"
+
+    # 2. Fit into the output frame (sharpened if asked), blurred copy as background.
+    pre = f"{ENHANCE_PRE}," if enhance else ""
+    post = f",{ENHANCE_POST}" if enhance else ""
+    if lay["blur"]:
+        bw, bh = even(W / 4), even(H / 4)
+        parts.append(f"[{cur}]split=2[bgs][fgs];"
+                     f"[bgs]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},"
+                     f"boxblur=10:2,eq=brightness=-0.12:saturation=1.3,scale={W}:{H}[bg];"
+                     f"[fgs]{pre}scale={fw}:{fh}:flags=lanczos{post}[fg];"
+                     f"[bg][fg]overlay={fx}:{fy},setsar=1[base]")
+    else:
+        parts.append(f"[{cur}]{pre}scale={W}:{H}:flags=lanczos{post},setsar=1[base]")
+    cur = "base"
+
+    # 3. Logo.
+    if logo:
+        parts.append(f"[2:v]scale={logo['w']}:{logo['h']}:flags=lanczos,format=rgba,"
+                     f"colorchannelmixer=aa={logo['opacity']:.2f}[logo];"
+                     f"[{cur}][logo]overlay={logo['x']}:{logo['y']}:format=auto[lg]")
+        cur = "lg"
+
+    # 4. Hold the last frame for a long final line, then text (subs, title, signature).
+    chain = []
+    if tail > 0.05:
+        chain.append(f"tpad=stop_mode=clone:stop_duration={tail:.3f}")
+    if use_ass:
+        chain.append("ass=subs.ass")
+    chain.append("format=yuv420p")
+    parts.append(f"[{cur}]" + ",".join(chain) + "[vout]")
+    return ";".join(parts)
 
 
 # ---------------------------------------------------------------- pipeline
@@ -162,6 +261,13 @@ def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts
     subtitles = bool(opts.get("subtitles", True))
     title = str(opts.get("title", ""))
     font = os.getenv("SUBTITLE_FONT", "Arial")
+    enhance = bool(opts.get("enhance", False))
+    blur_boxes = [b for b in (opts.get("blur_boxes") or []) if isinstance(b, dict)]
+    mark_text = str(opts.get("watermark_text", "")).strip()[:60]
+    corner = opts.get("watermark_pos") if opts.get("watermark_pos") in CORNERS else "tr"
+    mark_opacity = min(max(float(opts.get("watermark_opacity", 0.85)), 0.15), 1.0)
+    logo_path = opts.get("logo_path")             # set by the server when "use logo" is on
+    logo_size = min(max(float(opts.get("logo_size", 0.16)), 0.05), 0.4)
 
     segs = sorted([s for s in segments if str(s.get("text", "")).strip()],
                   key=lambda s: float(s["start"]))
@@ -216,30 +322,29 @@ def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts
     cmd += ["-filter_complex", ";".join(parts), "-map", "[v]", str(voice_wav)]
     run(cmd)
 
-    # 4. Subtitles.
+    # 4. Subtitles, title, signature.
     lay = layout(aspect, info)
-    if subtitles or title.strip():
+    logo = None
+    if logo_path and Path(logo_path).exists():
+        lw_src, lh_src = image_size(Path(logo_path))
+        lw = even(min(lay["W"], lay["H"]) * logo_size * (1.0 if lay["H"] >= lay["W"] else 1.2))
+        lh = even(lw * lh_src / max(1, lw_src))
+        logo = {"w": lw, "h": lh, "opacity": mark_opacity}
+    pos = mark_position(lay, corner, logo["h"] if logo else 0, logo["w"] if logo else 0)
+    if logo:
+        logo.update(x=pos["logo_x"], y=pos["logo_y"])
+    mark = {"text": mark_text, "opacity": mark_opacity, **pos} if mark_text else None
+    use_ass = subtitles or bool(title.strip()) or bool(mark)
+    if use_ass:
         cues = subtitle_cues(lines, 6 if lay["H"] > lay["W"] else 9) if subtitles else []
-        write_ass(job_dir / "subs.ass", cues, lay, title, total, font)
+        write_ass(job_dir / "subs.ass", cues, lay, title, total, font, mark)
     write_srt(job_dir / "output.srt", lines)
 
     # 5. Final video.
     on_progress("Đang xuất video (bước này hơi lâu)...")
-    W, H, fw, fh, fx, fy = (lay[k] for k in ("W", "H", "fw", "fh", "fx", "fy"))
-    if lay["blur"]:
-        bw, bh = even(W / 4), even(H / 4)
-        v = (f"[0:v]split=2[bgs][fgs];"
-             f"[bgs]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},"
-             f"boxblur=10:2,eq=brightness=-0.12:saturation=1.3,scale={W}:{H}[bg];"
-             f"[fgs]scale={fw}:{fh}[fg];[bg][fg]overlay={fx}:{fy},setsar=1")
-    else:
-        v = f"[0:v]scale={W}:{H},setsar=1"
-    tail = total - info.duration
-    if tail > 0.05:
-        v += f",tpad=stop_mode=clone:stop_duration={tail:.3f}"
-    if subtitles or title.strip():
-        v += ",ass=subs.ass"
-    v += ",format=yuv420p[vout]"
+    W, H = lay["W"], lay["H"]
+    v = build_video_filter(lay, info, enhance=enhance, blur_boxes=blur_boxes, logo=logo,
+                           tail=total - info.duration, use_ass=use_ass)
 
     if keep_original:
         a = (f"[0:a]aresample=44100,aformat=channel_layouts=stereo,volume={game_volume:.3f},apad[game];"
@@ -258,6 +363,7 @@ def render(job_dir: Path, src: Path, info: VideoInfo, segments: list[dict], opts
         try:
             run([
                 "ffmpeg", "-y", "-v", "error", "-i", str(src), "-i", voice_wav.name,
+                *(["-i", str(logo_path)] if logo else []),
                 "-filter_complex", v + ";" + a,
                 "-map", "[vout]", "-map", "[aout]", "-t", f"{total:.3f}",
                 "-c:v", encoder, *enc_args,

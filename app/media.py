@@ -69,6 +69,19 @@ def probe(path: Path) -> VideoInfo:
     return VideoInfo(w, h, duration, has_audio)
 
 
+def image_size(path: Path) -> tuple[int, int]:
+    out = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+               "stream=width,height", "-of", "csv=p=0:s=x", str(path)])
+    w, h = out.strip().split("x")[:2]
+    return int(w), int(h)
+
+
+def save_logo(src: Path, dst: Path) -> None:
+    """Normalise an uploaded logo (png/jpg/webp...) to a PNG of at most 800px."""
+    run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-frames:v", "1",
+         "-vf", "scale='min(800,iw)':-2:flags=lanczos,format=rgba", str(dst)])
+
+
 def audio_duration(path: Path) -> float:
     out = run([
         "ffprobe", "-v", "error", "-show_entries", "format=duration",

@@ -214,3 +214,76 @@ def test_normalize_keeps_line_voice():
     out = script_ai.normalize({"segments": SEGS}, duration=6)["segments"]
     assert "voice_id" not in out[0]
     assert (out[1]["provider"], out[1]["voice_id"]) == ("_test", "nu")
+
+
+# --------------------------------------------------------------- picture tools
+
+def _frame(video: Path, out: Path, t=2.0):
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", str(t), "-i", str(video),
+                    "-frames:v", "1", str(out)], check=True)
+    from PIL import Image
+    return Image.open(out).convert("L")
+
+
+def _sharpest_edge(img, box):
+    """Largest jump between horizontally neighbouring pixels: sharp edges ~200, blurred < 60."""
+    region = img.crop(box)
+    w, h = region.size
+    px = region.load()
+    return max(abs(px[x + 1, y] - px[x, y]) for y in range(0, h, 2) for x in range(w - 1))
+
+
+def test_blur_box_px_clamps_and_rejects_tiny():
+    from app import render
+    assert render.blur_box_px({"x": 0.5, "y": 0.5, "w": 0.9, "h": 0.9}, 640, 360) == (320, 180, 320, 180)
+    assert render.blur_box_px({"x": 0, "y": 0, "w": 0.001, "h": 0.5}, 640, 360) is None
+    assert render.blur_box_px({"x": "a"}, 640, 360) is None
+
+
+def test_filter_graph_has_all_picture_steps():
+    from app import media, render
+    info = media.VideoInfo(1280, 720, 6.0, True)
+    lay = render.layout("9:16", info)
+    g = render.build_video_filter(lay, info, enhance=True, use_ass=True, tail=0,
+                                  blur_boxes=[{"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}],
+                                  logo={"w": 160, "h": 80, "x": 10, "y": 10, "opacity": 0.8})
+    assert g.index("crop=") < g.index("hqdn3d") < g.index("unsharp") < g.index("[2:v]") < g.index("ass=subs.ass")
+    assert g.endswith("[vout]")
+
+
+def test_render_with_blur_logo_signature_and_enhance(tmp_path, sample_video, monkeypatch):
+    logo = tmp_path / "logo.png"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=200x100",
+                    "-frames:v", "1", str(logo)], check=True)
+    box = {"x": 0.25, "y": 0.25, "w": 0.5, "h": 0.5}
+    common = dict(aspect="original", subtitles=False)
+    _, _, plain = _render_capture(tmp_path / "plain", sample_video, monkeypatch, SEGS, **common)
+    _, _, edited = _render_capture(tmp_path / "edit", sample_video, monkeypatch, SEGS, **common,
+                                   blur_boxes=[box], enhance=True, logo_path=str(logo),
+                                   watermark_text="@BLV_Test", watermark_pos="tl", watermark_opacity=1)
+    a = _frame(plain / "output.mp4", tmp_path / "a.png")
+    b = _frame(edited / "output.mp4", tmp_path / "b.png")
+    w, h = a.size
+    inner = (int(w * 0.32), int(h * 0.32), int(w * 0.68), int(h * 0.68))
+    assert _sharpest_edge(a, inner) > 150                         # colour-bar edges in the original
+    assert _sharpest_edge(b, inner) < 60                          # ...gone inside the blurred box
+    from PIL import Image
+    rgb = Image.open(tmp_path / "b.png").convert("RGB")
+    m = round(min(w, h) * 0.035)                                  # corner margin used by render
+    r, g, bl = rgb.getpixel((m + 20, m + 10))
+    assert r > 180 and g < 90 and bl < 90                          # red logo in the top-left corner
+
+
+def test_logo_upload_and_delete(client, tmp_path):
+    c, server = client
+    png = tmp_path / "l.png"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=1200x300",
+                    "-frames:v", "1", str(png)], check=True)
+    assert c.get("/api/config").json()["logo"] is False
+    r = c.post("/api/logo", files={"file": ("logo.png", png.read_bytes(), "image/png")})
+    assert r.status_code == 200 and r.json()["width"] == 800      # downscaled to 800px
+    assert c.get("/api/config").json()["logo"] is True
+    assert c.get("/api/logo").headers["content-type"] == "image/png"
+    bad = c.post("/api/logo", files={"file": ("x.png", b"not an image", "image/png")})
+    assert bad.status_code == 400
+    assert c.delete("/api/logo").status_code == 200 and c.get("/api/logo").status_code == 404
