@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Highlight AI – Bình luận Liên Quân</title>
+<title>TikTok Studio AI</title>
 <style>
   :root {
     --bg: #0f1117; --card: #181b24; --line: #2a2f3d; --text: #e8eaf0; --muted: #9aa1b2;
@@ -108,6 +108,41 @@
   .my-style textarea { margin-top: 8px; font-size: 13px; }
   .chip.learned { border-style: dashed; }
 
+  /* menu */
+  .tool-nav { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .tool-nav a { text-decoration: none; color: var(--text); background: var(--card); border: 1px solid var(--line);
+                padding: 10px 16px; border-radius: 99px; font-weight: 600; font-size: 15px; }
+  .tool-nav a.active { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #111; border-color: transparent; }
+  /* fashion tool */
+  .asset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 820px) { .asset-grid { grid-template-columns: 1fr; } }
+  .asset { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #141720; display: flex; flex-direction: column; gap: 8px; }
+  .asset .drop { padding: 18px 10px; }
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .thumb { position: relative; width: 84px; height: 112px; border-radius: 8px; overflow: hidden; background: #0b0d12; border: 2px solid transparent; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb.big { width: 150px; height: 266px; }
+  .thumb.sel { border-color: var(--accent); }
+  .thumb .x { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; min-height: 0; min-width: 0; padding: 0;
+              border-radius: 50%; background: rgba(0,0,0,.65); color: #fff; font-size: 12px; line-height: 26px; }
+  .thumb .pick { position: absolute; left: 4px; bottom: 4px; right: 4px; min-height: 0; padding: 4px; font-size: 12px; border-radius: 6px;
+                 background: rgba(0,0,0,.65); color: #fff; }
+  .thumb.sel .pick { background: var(--accent); color: #111; font-weight: 700; }
+  .asset video { max-height: 260px; }
+  .outs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 12px; }
+  @media (min-width: 821px) { .outs { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } }
+  .out { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #141720; }
+  .out video { width: 100%; aspect-ratio: 9 / 16; max-height: none; }
+  .out .actions { margin-top: 6px; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { background: #232838; border-radius: 99px; padding: 4px 10px; font-size: 13px; }
+  .cap { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: #141720; margin-bottom: 8px; display: flex; gap: 10px; align-items: flex-start; }
+  .cap div { flex: 1; min-width: 0; }
+  .slot { display: flex; gap: 10px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 8px 0; flex-wrap: wrap; }
+  .badge { font-size: 12px; background: #3a2a10; color: #ffd28a; border-radius: 99px; padding: 2px 8px; margin-left: 6px; }
+  .consent { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; color: var(--text); font-size: 14px; }
+  .consent input { margin-top: 3px; width: 20px; height: 20px; flex: none; }
+
   /* ------------------------------------------------------------ responsive */
   /* Grid/flex children default to min-width:auto, so one long <select> option
      (voice names) could stretch the whole page wider than a small phone. */
@@ -180,11 +215,15 @@
 </head>
 <body>
 <header>
-  <h1>🎮 <span>Highlight AI</span> – Bình luận Liên Quân</h1>
-  <p>Tải video highlight lên → AI xem trận và viết lời bình → chỉnh sửa → xuất video có giọng đọc và phụ đề cho TikTok, Facebook, YouTube.</p>
+  <h1>🎬 <span>TikTok Studio AI</span></h1>
+  <nav class="tool-nav" id="toolNav">
+    <a href="#highlight" data-tool="highlight">🎙️ Bình luận Highlight Game</a>
+    <a href="#fashion" data-tool="fashion">👗 Video Thời Trang</a>
+  </nav>
+  <p id="toolDesc"></p>
 </header>
 
-<main>
+<main id="tool-highlight">
   <div id="keyWarn" class="warn hidden"></div>
 
   <!-- 1. Upload -->
@@ -399,6 +438,113 @@
     <div class="actions" style="margin-top:12px"><button class="small" id="btnPosts">🔄 AI viết lại caption theo kịch bản hiện tại</button></div>
     <div id="postsState" class="muted hidden" style="margin-top:10px"></div>
     <div id="postsErr" class="error hidden" style="margin-top:10px"></div>
+  </section>
+</main>
+
+<main id="tool-fashion" class="hidden">
+  <div id="fKeyWarn" class="warn hidden"></div>
+
+  <!-- F1. Assets -->
+  <section class="card">
+    <h2><span class="num">1</span> Ảnh quần áo, ảnh người mẫu, video nhảy</h2>
+    <div class="asset-grid">
+      <div class="asset">
+        <div class="section-title">👕 Ảnh quần áo <span class="muted">(tối đa 5)</span></div>
+        <div class="drop" data-pick="clothes"><div style="font-size:26px">🖼️</div><b>Bấm để chọn ảnh</b><div class="muted">Ảnh chụp rõ sản phẩm, nền trơn là đẹp nhất</div></div>
+        <div class="thumbs" id="fClothes"></div>
+      </div>
+      <div class="asset">
+        <div class="section-title">🧍 Ảnh người mẫu</div>
+        <div class="drop" data-pick="model"><div style="font-size:26px">📷</div><b>Bấm để chọn ảnh</b><div class="muted">Ảnh rõ mặt, đứng thẳng, thấy toàn thân</div></div>
+        <div class="thumbs" id="fModel"></div>
+      </div>
+      <div class="asset">
+        <div class="section-title">💃 Video nhảy của người mẫu</div>
+        <div class="drop" data-pick="dance"><div style="font-size:26px">🎬</div><b>Bấm để chọn video</b><div class="muted">Quay dọc là đẹp nhất</div></div>
+        <video id="fDance" class="hidden" controls playsinline></video>
+        <div class="muted" id="fDanceInfo"></div>
+      </div>
+    </div>
+    <input type="file" id="fFileClothes" accept="image/*" multiple hidden>
+    <input type="file" id="fFileModel" accept="image/*" hidden>
+    <input type="file" id="fFileDance" accept="video/*" hidden>
+    <div id="fUpState" class="muted hidden" style="margin-top:10px"></div>
+    <div id="fUpErr" class="error hidden" style="margin-top:10px"></div>
+    <label class="consent"><input type="checkbox" id="fConsent"> <span>Tôi có quyền dùng ảnh và video của người mẫu này (chính tôi, hoặc người mẫu đã đồng ý cho dùng để bán hàng).</span></label>
+    <div class="actions" style="margin-top:10px"><button class="small" id="fNew">🆕 Bắt đầu dự án mới</button></div>
+  </section>
+
+  <!-- F2. Try-on -->
+  <section class="card">
+    <h2><span class="num">2</span> AI mặc thử quần áo cho người mẫu</h2>
+    <p class="muted" style="margin-top:0">AI tạo <b>ảnh</b> người mẫu đang mặc sản phẩm của bạn – dùng làm ảnh bìa hoặc chèn vào đầu/cuối video. Mỗi ảnh tốn một lượt Gemini tạo ảnh.</p>
+    <div class="row">
+      <div><label for="fTryNotes">Yêu cầu thêm (không bắt buộc)</label>
+        <input type="text" id="fTryNotes" placeholder="VD: phối với giày trắng, nền phố đêm"></div>
+      <div style="flex:0 0 150px"><label for="fTryCount">Số ảnh</label>
+        <select id="fTryCount"><option value="1">1 ảnh</option><option value="2">2 ảnh</option><option value="3">3 ảnh</option></select></div>
+      <div style="flex:0 0 auto"><button class="primary" id="fBtnTryon">✨ AI mặc thử</button></div>
+    </div>
+    <div id="fTryState" class="muted hidden" style="margin-top:10px"></div>
+    <div id="fTryErr" class="error hidden" style="margin-top:10px"></div>
+    <div class="thumbs" id="fTryon" style="margin-top:12px"></div>
+  </section>
+
+  <!-- F3. Product video -->
+  <section class="card">
+    <h2><span class="num">3</span> Tạo video sản phẩm <span class="muted" style="font-weight:400">– không có chữ, bạn tự gắn thẻ trên TikTok</span></h2>
+    <label>Thời lượng (chọn một hoặc nhiều)</label>
+    <div class="chips" id="fDurations">
+      <label class="chip"><input type="checkbox" value="3"><b>⚡ 3 giây</b></label>
+      <label class="chip"><input type="checkbox" value="10" checked><b>🎯 10 giây</b></label>
+      <label class="chip"><input type="checkbox" value="15"><b>15 giây</b></label>
+      <label class="chip"><input type="checkbox" value="30"><b>🎬 30 giây</b></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><label for="fCustomDur">Hoặc tự nhập số giây (1–60)</label><input type="number" id="fCustomDur" min="1" max="60" step="1" placeholder="VD: 20"></div>
+      <div><label for="fStart">Bắt đầu từ giây thứ</label>
+        <div class="inline"><input type="number" id="fStart" min="0" step="0.1" value="0"><button class="small" id="fStartNow" title="Lấy thời điểm đang xem trong video nhảy">⏱️ Đang xem</button></div></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><label for="fTryAt">Chèn ảnh AI mặc thử</label>
+        <select id="fTryAt"><option value="none">Không chèn</option><option value="start">Ở đầu video</option><option value="end">Ở cuối video</option><option value="both">Cả đầu và cuối</option></select></div>
+      <div><label for="fPip">Ảnh sản phẩm nhỏ ở góc khi nhảy</label><select id="fPip"><option value="">Không hiện</option></select></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label class="switch"><input type="checkbox" id="fMute"> 🔇 Tắt tiếng gốc</label>
+      <label class="switch"><input type="checkbox" id="fEnhance"> ✨ Làm nét video</label>
+    </div>
+    <div class="muted">Mẹo: tắt tiếng gốc rồi chọn <b>nhạc trend ngay trong TikTok</b> khi đăng – video dùng nhạc trong thư viện TikTok thường được đề xuất tốt hơn.</div>
+    <div style="margin-top:14px"><button class="primary" id="fBtnRender">🎬 Tạo video</button></div>
+    <div id="fRenderState" class="muted hidden" style="margin-top:10px"></div>
+    <div id="fRenderErr" class="error hidden" style="margin-top:10px"></div>
+    <div class="outs" id="fOutputs"></div>
+  </section>
+
+  <!-- F4. Posting -->
+  <section class="card">
+    <h2><span class="num">4</span> Đăng TikTok: caption, hashtag, trend, giờ đăng</h2>
+    <div class="row">
+      <div><label for="fPostNotes">Thông tin sản phẩm (không bắt buộc)</label>
+        <input type="text" id="fPostNotes" placeholder="VD: Váy hoa nhí, 249k, freeship, có size S-XL"></div>
+      <div style="flex:0 0 auto"><button class="primary" id="fBtnPosts">🔥 AI gợi ý caption &amp; trend</button></div>
+    </div>
+    <div id="fPostState" class="muted hidden" style="margin-top:10px"></div>
+    <div id="fPostErr" class="error hidden" style="margin-top:10px"></div>
+    <div id="fPosts" style="margin-top:12px"></div>
+
+    <div class="mute-box">
+      <div class="section-title">📤 Cách đăng</div>
+      <label class="switch"><input type="radio" name="fPostMode" value="manual" checked> ✋ Tự đăng tay – tải video, copy caption, app nhắc giờ đăng</label>
+      <label class="switch" style="opacity:.55"><input type="radio" name="fPostMode" value="auto" disabled> 🤖 Tự động đăng lên TikTok <span class="badge">Sắp có</span></label>
+      <div class="muted" style="margin-top:6px">Tự động đăng cần đăng ký <b>TikTok for Developers</b> và được TikTok duyệt app; theo tài liệu TikTok, app chưa được duyệt chỉ đăng được video ở chế độ riêng tư. Khi bạn có tài khoản developer, mình sẽ làm phần này.</div>
+    </div>
+
+    <div class="mute-box">
+      <div class="section-title">⏰ Giờ đăng gợi ý (giờ Việt Nam)</div>
+      <div class="muted">Thói quen chung của người xem TikTok ở Việt Nam – nên thử và xem số liệu trong TikTok Analytics của bạn.</div>
+      <div id="fSlots"></div>
+    </div>
   </section>
 </main>
 
@@ -1004,7 +1150,219 @@ async function pollSample(id) {
   $("sampleState").textContent = `✅ Đã học xong phong cách “${myStyles[t.style_key]?.name}” và chọn sẵn cho video của bạn.`;
 }
 
-init();
+// ================================================================ menu
+const TOOLS = {
+  highlight: "Tải video highlight lên → AI xem trận và viết lời bình → chỉnh sửa → xuất video có giọng đọc và phụ đề cho TikTok, Facebook, YouTube.",
+  fashion: "Ảnh quần áo + ảnh người mẫu + video nhảy → AI mặc thử, video sản phẩm 3/10/30 giây (không chữ), caption, hashtag, trend và giờ đăng TikTok.",
+};
+function showTool() {
+  const tool = (location.hash || "#highlight").slice(1) in TOOLS ? (location.hash || "#highlight").slice(1) : "highlight";
+  Object.keys(TOOLS).forEach(t => show("tool-" + t, t === tool));
+  document.querySelectorAll("#toolNav a").forEach(a => a.classList.toggle("active", a.dataset.tool === tool));
+  $("toolDesc").textContent = TOOLS[tool];
+  if (tool === "fashion") fashionOpen();
+}
+window.addEventListener("hashchange", showTool);
+
+// ================================================================ 👗 fashion tool
+let fp = null, fPollTimer = null, fStarted = false;
+const F_AREAS = { tryon: ["fTryState", "fTryErr"], render: ["fRenderState", "fRenderErr"], posts: ["fPostState", "fPostErr"] };
+const fFile = (name) => `/api/fashion/${fp.id}/file/${encodeURIComponent(name)}`;
+
+async function fashionOpen() {
+  if (fStarted) return;
+  fStarted = true;
+  if (!cfg.gemini) { $("fKeyWarn").innerHTML = "⚠️ Chưa có <b>GEMINI_API_KEY</b> → chưa dùng được AI mặc thử và gợi ý caption (vẫn tạo được video). Điền key vào file <code>.env</code> rồi khởi động lại ứng dụng."; show("fKeyWarn"); }
+  const saved = localGet("fashionId");
+  if (saved) { try { fp = await api(`/api/fashion/${saved}`); } catch { fp = null; } }
+  if (!fp) await fNewProject();
+  else fRender();
+  if (fp.status === "running") fPoll();
+}
+
+async function fNewProject() {
+  fp = await api("/api/fashion", { method: "POST" });
+  localSet("fashionId", fp.id);
+  fRender();
+}
+$("fNew").onclick = async () => {
+  if (fp && (fp.clothes.length || fp.dance || fp.model) && !confirm("Bắt đầu dự án mới? Ảnh và video của dự án hiện tại vẫn được giữ 7 ngày nhưng sẽ không hiện ở đây nữa.")) return;
+  await fNewProject();
+};
+
+function fThumb(name, { big = false, del = true, pick = null, selected = false } = {}) {
+  return `<div class="thumb ${big ? "big" : ""} ${selected ? "sel" : ""}">
+    <a href="${fFile(name)}" target="_blank"><img src="${fFile(name)}?v=${fp.created}" alt=""></a>
+    ${del ? `<button class="x" data-fdel="${escapeHtml(name)}" title="Xoá">✕</button>` : ""}
+    ${pick ? `<button class="pick" data-fpick="${escapeHtml(name)}">${selected ? "✅ Dùng trong video" : "Dùng trong video"}</button>` : ""}
+  </div>`;
+}
+
+let fChosenTryon = null;
+function fRender() {
+  $("fClothes").innerHTML = fp.clothes.map(n => fThumb(n)).join("");
+  $("fModel").innerHTML = fp.model ? fThumb(fp.model) : "";
+  if (fp.dance) {
+    const src = `${fFile("dance_preview.mp4")}?v=${encodeURIComponent(fp.dance + fp.dance_info.duration)}`;
+    if (!$("fDance").src.endsWith(src)) $("fDance").src = src;
+    show("fDance");
+    const i = fp.dance_info;
+    $("fDanceInfo").textContent = `${i.width}×${i.height} (${i.orientation}) · ${i.duration.toFixed(1)} giây${i.has_audio ? "" : " · không có tiếng"}`;
+  } else { show("fDance", false); $("fDance").removeAttribute("src"); $("fDanceInfo").textContent = ""; }
+  if (!fp.tryon.includes(fChosenTryon)) fChosenTryon = fp.tryon[0] || null;
+  $("fTryon").innerHTML = fp.tryon.map(n => fThumb(n, { big: true, pick: true, selected: n === fChosenTryon })).join("")
+    || `<span class="muted">Chưa có ảnh mặc thử.</span>`;
+  $("fTryAt").disabled = !fp.tryon.length;
+  if (!fp.tryon.length) $("fTryAt").value = "none";
+  else if ($("fTryAt").value === "none" && !$("fTryAt").dataset.touched) $("fTryAt").value = "start";
+  const pipCur = $("fPip").value;
+  $("fPip").innerHTML = `<option value="">Không hiện</option>` +
+    fp.clothes.map((n, i) => `<option value="${escapeHtml(n)}">Ảnh quần áo ${i + 1}</option>`).join("") +
+    fp.tryon.map((n, i) => `<option value="${escapeHtml(n)}">Ảnh mặc thử ${i + 1}</option>`).join("");
+  if ([...$("fPip").options].some(o => o.value === pipCur)) $("fPip").value = pipCur;
+  $("fOutputs").innerHTML = fp.outputs.map(o => `<div class="out">
+      <video src="${fFile(o.file)}" controls playsinline preload="metadata"></video>
+      <div class="muted">${o.duration} giây${o.looped ? " · video nhảy ngắn nên được lặp lại" : ""}</div>
+      <div class="actions"><a class="btn" href="${fFile(o.file)}?download=true"><button class="small primary">⬇️ Tải về</button></a>
+        <button class="small" data-fdelout="${escapeHtml(o.file)}">🗑️</button></div></div>`).join("");
+  fRenderPosts();
+}
+$("fTryAt").onchange = () => { $("fTryAt").dataset.touched = "1"; };
+
+// uploads
+document.querySelectorAll("[data-pick]").forEach(el => el.onclick = () => {
+  const kind = el.dataset.pick;
+  if (kind !== "clothes" && !$("fConsent").checked && kind === "model") { /* consent asked on use */ }
+  ({ clothes: $("fFileClothes"), model: $("fFileModel"), dance: $("fFileDance") })[kind].click();
+});
+$("fFileClothes").onchange = () => fUpload("clothes", [...$("fFileClothes").files]);
+$("fFileModel").onchange = () => fUpload("model", [...$("fFileModel").files]);
+$("fFileDance").onchange = () => fUpload("dance", [...$("fFileDance").files]);
+
+async function fUpload(kind, files) {
+  err("fUpErr");
+  for (const f of files) {
+    if (kind === "clothes" && fp.clothes.length >= 5) { err("fUpErr", "Tối đa 5 ảnh quần áo."); break; }
+    show("fUpState");
+    await new Promise((resolve) => {
+      const fd = new FormData(); fd.append("kind", kind); fd.append("file", f);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `/api/fashion/${fp.id}/upload`);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) $("fUpState").innerHTML = `<span class="spinner"></span>Đang tải ${escapeHtml(f.name)}... ${Math.round(e.loaded / e.total * 100)}%`; };
+      xhr.onload = () => {
+        let d = {}; try { d = JSON.parse(xhr.responseText); } catch {}
+        if (xhr.status === 200) { fp = d; fRender(); } else err("fUpErr", d.detail || "Tải lên thất bại.");
+        resolve();
+      };
+      xhr.onerror = () => { err("fUpErr", "Mất kết nối khi tải lên."); resolve(); };
+      xhr.send(fd);
+    });
+  }
+  show("fUpState", false);
+  ["fFileClothes", "fFileModel", "fFileDance"].forEach(id => $(id).value = "");
+}
+
+$("tool-fashion").addEventListener("click", async (e) => {
+  const t = e.target;
+  try {
+    if (t.dataset.fdel !== undefined) {
+      e.preventDefault();
+      if (!confirm("Xoá ảnh này?")) return;
+      fp = await api(`/api/fashion/${fp.id}/asset/${encodeURIComponent(t.dataset.fdel)}`, { method: "DELETE" }); fRender();
+    }
+    if (t.dataset.fpick !== undefined) { e.preventDefault(); fChosenTryon = t.dataset.fpick; fRender(); }
+    if (t.dataset.fdelout !== undefined && confirm("Xoá video này?")) {
+      fp = await api(`/api/fashion/${fp.id}/output/${encodeURIComponent(t.dataset.fdelout)}`, { method: "DELETE" }); fRender();
+    }
+    if (t.dataset.fcopy !== undefined) copyText(t.dataset.fcopy, t);
+  } catch (ex) { err("fUpErr", ex.message); }
+});
+
+// background tasks
+function fPoll() {
+  clearTimeout(fPollTimer);
+  const [busy, errBox] = F_AREAS[fp.task] || F_AREAS.render;
+  show(busy); $(busy).innerHTML = `<span class="spinner"></span>${escapeHtml(fp.progress || "Đang xử lý...")}`;
+  ["fBtnTryon", "fBtnRender", "fBtnPosts"].forEach(id => $(id).disabled = true);
+  fPollTimer = setTimeout(async () => {
+    try { fp = await api(`/api/fashion/${fp.id}`); } catch { return fPollTimer = setTimeout(fPoll, 3000); }
+    fRender();
+    if (fp.status === "running") return fPoll();
+    ["fBtnTryon", "fBtnRender", "fBtnPosts"].forEach(id => $(id).disabled = false);
+    show(busy, false);
+    if (fp.status === "error") err(errBox, fp.error);
+  }, 1500);
+}
+
+async function fStart(path, body, errBox) {
+  err(errBox);
+  try { fp = await api(`/api/fashion/${fp.id}/${path}`, { method: "POST", body: JSON.stringify(body) }); fPoll(); }
+  catch (e) { err(errBox, e.message); }
+}
+
+$("fBtnTryon").onclick = () => {
+  if (!cfg.gemini) return err("fTryErr", "Cần điền GEMINI_API_KEY vào file .env (lấy miễn phí tại aistudio.google.com) rồi khởi động lại ứng dụng.");
+  if (!$("fConsent").checked) return err("fTryErr", "Hãy tick xác nhận bạn có quyền dùng ảnh của người mẫu (ở bước 1).");
+  fStart("tryon", { count: +$("fTryCount").value, notes: $("fTryNotes").value, consent: true }, "fTryErr");
+};
+
+$("fStartNow").onclick = () => { $("fStart").value = ($("fDance").currentTime || 0).toFixed(1); };
+$("fBtnRender").onclick = () => {
+  if (!fp.dance) return err("fRenderErr", "Hãy tải video nhảy của người mẫu lên trước (bước 1).");
+  if (!$("fConsent").checked) return err("fRenderErr", "Hãy tick xác nhận bạn có quyền dùng ảnh và video của người mẫu (ở bước 1).");
+  const durations = [...document.querySelectorAll("#fDurations input:checked")].map(i => +i.value);
+  const custom = parseFloat($("fCustomDur").value);
+  if (custom) durations.push(Math.min(60, Math.max(1, custom)));
+  if (!durations.length) return err("fRenderErr", "Hãy chọn ít nhất một thời lượng.");
+  const at = $("fTryAt").value;
+  fStart("render", {
+    durations, start: parseFloat($("fStart").value) || 0,
+    tryon: at === "none" ? null : fChosenTryon, tryon_at: at === "none" ? "start" : at,
+    pip: $("fPip").value || null, keep_audio: !$("fMute").checked, enhance: $("fEnhance").checked,
+  }, "fRenderErr");
+};
+
+// captions / trends / times
+$("fBtnPosts").onclick = () => {
+  if (!cfg.gemini) return err("fPostErr", "Cần điền GEMINI_API_KEY vào file .env (lấy miễn phí tại aistudio.google.com) rồi khởi động lại ứng dụng.");
+  if (!fp.clothes.length) return err("fPostErr", "Hãy tải ảnh quần áo lên trước (bước 1).");
+  fStart("posts", { notes: $("fPostNotes").value }, "fPostErr");
+};
+
+function fRenderPosts() {
+  const p = fp.posts;
+  if (!p) { $("fPosts").innerHTML = ""; fRenderSlots(); return; }
+  const tags = (p.hashtags || []).join(" ");
+  const list = (title, arr) => arr && arr.length ? `<div class="section-title" style="margin-top:12px">${title}</div><ul class="muted" style="margin:0;padding-left:18px">${arr.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>` : "";
+  $("fPosts").innerHTML = `
+    ${p.product ? `<div class="summary">👗 ${escapeHtml(p.product)}</div>` : ""}
+    <div class="section-title">✍️ Caption (bấm Copy để lấy kèm hashtag)</div>
+    ${(p.captions || []).map(c => `<div class="cap"><div>${escapeHtml(c)}</div><button class="small" data-fcopy="${escapeHtml(c + "\n\n" + tags)}">📋 Copy</button></div>`).join("")}
+    <div class="section-title" style="margin-top:12px"># Hashtag <button class="small" data-fcopy="${escapeHtml(tags)}">📋 Copy tất cả</button></div>
+    <div class="tags">${(p.hashtags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>
+    ${list("🎵 Gợi ý nhạc / âm thanh (chọn trong thư viện nhạc TikTok)", p.music)}
+    ${list("🔥 Ý tưởng trend có thể làm theo", p.trends)}
+    ${list("⏰ AI gợi ý giờ đăng", p.best_times)}
+    <div class="muted" style="margin-top:8px">Gợi ý trend dựa trên tìm kiếm Google của AI – nên mở TikTok kiểm tra lại trước khi dùng.</div>`;
+  fRenderSlots();
+}
+
+let fSlotsData = null;
+async function fRenderSlots() {
+  if (!fp) return;
+  if (!fSlotsData) fSlotsData = await api(`/api/fashion/${fp.id}/slots`).catch(() => null);
+  const d = fSlotsData;
+  if (!d) return;
+  const cap = fp.posts?.captions?.[0] ? fp.posts.captions[0] + "\n\n" + (fp.posts.hashtags || []).join(" ") : "";
+  $("fSlots").innerHTML = d.slots.map(s => {
+    const dt = new Date(s.at);
+    const day = dt.toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit" });
+    return `<div class="slot"><div><b>${escapeHtml(s.label)}</b> · ${day} · ${s.range}<div class="muted">${escapeHtml(s.why)}</div></div>
+      <a class="btn" href="/api/fashion/${fp.id}/reminder.ics?at=${encodeURIComponent(s.at)}&caption=${encodeURIComponent(cap)}"><button class="small">📅 Nhắc tôi</button></a></div>`;
+  }).join("");
+}
+
+init().finally(showTool);
 </script>
 </body>
 </html>

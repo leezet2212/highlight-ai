@@ -1,4 +1,13 @@
-# 🎮 Highlight AI – Bình luận Liên Quân bằng AI
+# 🎬 TikTok Studio AI
+
+Bộ công cụ làm video TikTok bằng AI, gồm 2 mục trong menu:
+
+- **🎙️ Bình luận Highlight Game** – lồng tiếng bình luận cho video highlight Liên Quân (bên dưới).
+- **👗 Video Thời Trang** – ảnh quần áo + ảnh người mẫu + video nhảy → AI mặc thử, video sản phẩm không chữ 3/10/30 giây, caption, hashtag, trend và giờ đăng (xem phần [Video Thời Trang](#-video-thời-trang)).
+
+---
+
+## 🎙️ Bình luận Highlight Game
 
 Tải video highlight (chưa có tiếng bình luận) lên → AI **xem trận đấu** và viết lời bình theo phong cách bạn chọn → bạn sửa lại nếu muốn → xuất **video có giọng đọc + phụ đề** để đăng TikTok, Facebook, YouTube.
 
@@ -98,7 +107,22 @@ Muốn cập nhật web sau khi sửa code, chạy lại workflow. Muốn đổi
 
 Dịch vụ khác (Render, Railway, Fly.io, VPS) cũng chạy được bằng `Dockerfile` này. Ứng dụng đọc cổng mạng từ biến `PORT`, và cần ít nhất 1–2 GB RAM.
 
-## Cách dùng
+## 👗 Video Thời Trang
+
+Mở menu **👗 Video Thời Trang** (hoặc `http://localhost:8000/#fashion`):
+
+1. **Tải lên** tối đa 5 ảnh quần áo, 1 ảnh người mẫu, 1 video nhảy của người mẫu; tick xác nhận bạn có quyền dùng ảnh/video của người mẫu.
+2. **✨ AI mặc thử**: Gemini tạo ảnh người mẫu mặc sản phẩm (1–3 ảnh). Chọn ảnh “Dùng trong video”.
+3. **🎬 Tạo video**: chọn một hoặc nhiều thời lượng **3 / 10 / 15 / 30 giây** hoặc tự nhập (1–60 giây), giây bắt đầu, chèn ảnh mặc thử ở đầu/cuối, ảnh sản phẩm nhỏ ở góc, tắt tiếng gốc, làm nét. Video **9:16, không có chữ** – bạn tự gắn thẻ sản phẩm và chọn nhạc trend trong TikTok. Video nhảy ngắn hơn thời lượng sẽ được lặp lại.
+4. **🔥 Đăng TikTok**: AI (có tìm kiếm Google) gợi ý caption, hashtag, kiểu nhạc, ý tưởng trend, giờ đăng; bấm **📋 Copy**. Danh sách giờ đăng gợi ý có nút **📅 Nhắc tôi** tải file lịch (`.ics`) để điện thoại/máy tính nhắc đúng giờ.
+
+Lưu ý:
+- **Tự động đăng lên TikTok** chưa có: cần đăng ký TikTok for Developers và được TikTok duyệt app (app chưa duyệt chỉ đăng được video riêng tư). Hiện tại đăng tay + nhắc giờ.
+- **AI mặc thử** dùng mẫu tạo ảnh của Gemini (`GEMINI_IMAGE_MODEL`). Mẫu này có thể không nằm trong gói miễn phí – nếu báo hết lượt/không được phép, hãy kiểm tra gói trong Google AI Studio. Bộ lọc an toàn có thể từ chối một số ảnh.
+- Chỉ dùng ảnh/video người mẫu đã đồng ý; trend chỉ là gợi ý, nên kiểm tra lại trên TikTok.
+- Dự án thời trang được giữ 7 ngày (`FASHION_TTL_HOURS`).
+
+## Cách dùng (Bình luận Highlight Game)
 
 1. Kéo thả video highlight vào trang.
 2. Chọn phong cách. Bạn có thể ghi thêm yêu cầu, ví dụ *"mình cầm Nakroth áo đỏ, gọi mình là anh Tèo, giọng miền Tây"*.
@@ -124,6 +148,8 @@ app/
   styles.py     Các phong cách bình luận (sửa/thêm phong cách ở đây)
   tts.py        Giọng đọc ElevenLabs / Edge TTS
   render.py     Ghép giọng, giảm tiếng game, phụ đề, khung 9:16/16:9 nền mờ
+  fashion.py    👗 AI mặc thử, dựng video sản phẩm, caption/trend, nhắc giờ đăng
+  fashion_api.py API của mục Video Thời Trang (/api/fashion/...)
   media.py      Hàm tiện ích ffmpeg/ffprobe, tự chọn card đồ hoạ để xuất video
 static/
   index.html    Giao diện web

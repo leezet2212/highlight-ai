@@ -497,4 +497,10 @@ def srt(job_id: str):
     return FileResponse(f, media_type="application/x-subrip", filename=f"phu-de-{job_id}.srt")
 
 
+# 👗 Video Thời Trang (second tool in the TikTok Studio AI menu).
+from . import fashion_api  # noqa: E402
+
+fashion_api.init(DATA.parent, RENDER_SLOTS)
+app.include_router(fashion_api.router)
+
 app.mount("/", StaticFiles(directory=ROOT / "static", html=True), name="static")

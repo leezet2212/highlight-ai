@@ -347,3 +347,97 @@ def test_sample_video_needs_sound(client, tmp_path):
                     "-c:v", "libx264", str(silent)], check=True)
     r = c.post("/api/style-samples", files={"file": ("s.mp4", silent.read_bytes(), "video/mp4")})
     assert r.status_code == 400 and "không có tiếng" in r.json()["detail"]
+
+
+# --------------------------------------------------------------- 👗 fashion tool
+
+def _png(path: Path, color="red", size="300x400") -> Path:
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"color=c={color}:s={size}",
+                    "-frames:v", "1", str(path)], check=True)
+    return path
+
+
+def test_fashion_timeline_and_json_helpers():
+    from app import fashion
+    assert fashion.plan_timeline(3, "start", True) == {"head": 0.75, "tail": 0.0, "dance": 2.25}
+    assert fashion.plan_timeline(10, "both", True) == {"head": 1.0, "tail": 1.0, "dance": 8.0}
+    assert fashion.plan_timeline(10, "both", False)["dance"] == 10
+    data = fashion.parse_json_block('Đây là gợi ý:\n```json\n{"captions": ["a"], "hashtags": ["fyp", "#fyp", "xu huong"]}\n```')
+    assert fashion.normalize_posts(data)["hashtags"] == ["#fyp", "#xuhuong"]
+    with pytest.raises(fashion.FashionError):
+        fashion.parse_json_block("không có json")
+    ics = fashion.reminder_ics(__import__("datetime").datetime(2026, 12, 1, 19, 30), "Đăng", "a, b; c")
+    assert "DTSTART:20261201T193000" in ics and "a\\, b\; c" in ics and "BEGIN:VALARM" in ics
+
+
+def test_fashion_full_flow(client, tmp_path, monkeypatch):
+    c, server = client
+    from app import fashion, fashion_api
+    dance = tmp_path / "dance.mp4"
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=360x640:rate=25:duration=4",
+                    "-f", "lavfi", "-i", "sine=duration=4", "-c:v", "libx264", "-c:a", "aac", "-shortest", str(dance)],
+                   check=True)
+    pid = c.post("/api/fashion").json()["id"]
+    up = lambda kind, path, mime: c.post(f"/api/fashion/{pid}/upload", data={"kind": kind},  # noqa: E731
+                                         files={"file": (path.name, path.read_bytes(), mime)})
+    assert up("clothes", _png(tmp_path / "ao.jpg", "pink"), "image/jpeg").status_code == 200
+    assert up("model", _png(tmp_path / "mau.png", "blue"), "image/png").status_code == 200
+    r = up("dance", dance, "video/mp4")
+    assert r.status_code == 200 and r.json()["dance_info"]["orientation"] == "dọc"
+    assert up("clothes", tmp_path / "ao.jpg", "image/jpeg").json()["clothes"] == ["clothes_1.png", "clothes_2.png"]
+
+    # Try-on needs consent; the fake AI writes a PNG like the real one would.
+    assert c.post(f"/api/fashion/{pid}/tryon", json={"consent": False}).status_code == 400
+
+    def fake_tryon(model_photo, clothes, out_dir, count=1, notes="", on_progress=None):
+        name = fashion.next_name(out_dir, "tryon", ".png")
+        _png(out_dir / name, "green", "540x960")
+        return [name]
+    monkeypatch.setattr(fashion_api.fashion, "generate_tryon", fake_tryon)
+    assert c.post(f"/api/fashion/{pid}/tryon", json={"consent": True}).status_code == 200
+    p = wait_fashion(c, pid)
+    assert p["status"] == "done", p["error"]
+    assert p["tryon"] == ["tryon_1.png"]
+
+    # Text-free product videos in two lengths, try-on photo at the start, product photo in the corner.
+    r = c.post(f"/api/fashion/{pid}/render", json={"durations": [3, 10], "tryon": "tryon_1.png",
+                                                     "tryon_at": "start", "pip": "clothes_1.png"})
+    assert r.status_code == 200
+    p = wait_fashion(c, pid, 120)
+    assert p["status"] == "done", p["error"]
+    outs = {o["duration"]: o for o in p["outputs"]}
+    assert set(outs) == {3, 10} and outs[10]["looped"]                    # 4s dance looped to fill 10s
+    from app import media
+    for sec, o in outs.items():
+        info = media.probe(server.DATA.parent / "fashion" / pid / o["file"])
+        assert (info.width, info.height) == (1080, 1920) and abs(info.duration - sec) < 0.15
+    first = _frame(server.DATA.parent / "fashion" / pid / outs[3]["file"], tmp_path / "f.png", 0.2)
+    from PIL import Image
+    r_, g_, b_ = Image.open(tmp_path / "f.png").convert("RGB").getpixel((540, 960))
+    assert g_ > 100 and r_ < 80                                            # opens on the (green) try-on photo
+
+    # Captions & trends (fake AI), posting slots and calendar reminder.
+    monkeypatch.setattr(fashion_api.fashion, "generate_posts",
+                        lambda images, notes: fashion.normalize_posts({"captions": ["Xinh quá 😍"], "hashtags": ["fyp"]}))
+    assert c.post(f"/api/fashion/{pid}/posts", json={"notes": "249k"}).status_code == 200
+    p = wait_fashion(c, pid)
+    assert p["posts"]["hashtags"] == ["#fyp"]
+    slot = c.get(f"/api/fashion/{pid}/slots").json()["slots"][0]["at"]
+    r = c.get(f"/api/fashion/{pid}/reminder.ics", params={"at": slot, "caption": "Xinh quá"})
+    assert r.status_code == 200 and "text/calendar" in r.headers["content-type"]
+
+    # Files can't be read outside the project folder.
+    assert c.get(f"/api/fashion/{pid}/file/project.json").status_code == 404
+    assert c.get(f"/api/fashion/{pid}/file/..%2F..%2Fstyles").status_code == 404
+    # Delete an output and an asset.
+    assert len(c.delete(f"/api/fashion/{pid}/output/{outs[3]['file']}").json()["outputs"]) == 1
+    assert c.delete(f"/api/fashion/{pid}/asset/clothes_2.png").json()["clothes"] == ["clothes_1.png"]
+
+
+def wait_fashion(c, pid, timeout=60):
+    for _ in range(int(timeout / 0.2)):
+        p = c.get(f"/api/fashion/{pid}").json()
+        if p["status"] != "running":
+            return p
+        time.sleep(0.2)
+    raise AssertionError("fashion task did not finish")

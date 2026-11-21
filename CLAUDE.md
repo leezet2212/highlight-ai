@@ -4,8 +4,9 @@ Hướng dẫn cho Claude (và người) khi đọc/sửa code trong repo này.
 
 ## Dự án
 
-**Highlight AI** – web app tự động bình luận video highlight Liên Quân Mobile.
-Tải video lên → Gemini xem video và viết lời bình theo phong cách → người dùng sửa → xuất MP4 có giọng đọc + phụ đề cho TikTok/Facebook/YouTube.
+**TikTok Studio AI** – web app làm video TikTok, menu 2 mục (đổi bằng hash `#highlight` / `#fashion`, hàm `showTool()` trong index.html; mỗi mục là một `<main id="tool-...">`):
+1. **🎙️ Bình luận Highlight Game** (`#highlight`, mục gốc "Highlight AI"): tải video highlight Liên Quân → Gemini xem video và viết lời bình theo phong cách → người dùng sửa → xuất MP4 có giọng đọc + phụ đề.
+2. **👗 Video Thời Trang** (`#fashion`): ảnh quần áo (≤5) + ảnh người mẫu + video nhảy → AI mặc thử (ảnh), video sản phẩm 9:16 **không có chữ** (người dùng yêu cầu: họ tự gắn thẻ trên TikTok) với thời lượng 3/10/15/30 hoặc tự nhập 1–60 giây, caption/hashtag/nhạc/trend/giờ đăng, nhắc giờ đăng bằng file `.ics`. Tự động đăng TikTok chưa làm (cần TikTok for Developers duyệt app) – giao diện hiện lựa chọn "Sắp có".
 
 Người dùng là người Việt: **mọi chữ hiển thị trên giao diện và mọi thông báo lỗi trả về người dùng đều viết bằng tiếng Việt có dấu**. Tên biến, comment trong code dùng tiếng Anh.
 
@@ -39,6 +40,8 @@ Người dùng cuối chạy **trên máy của họ** (cách chính): `run.bat`
 ```
 app/server.py     FastAPI: API + phục vụ static/. Job chạy nền bằng thread.
 app/script_ai.py  Gửi video cho Gemini → JSON {summary, segments[start,end,event,text], posts{tiktok,facebook,youtube}{title,caption,hashtags}}; normalize() kẹp thời gian, bỏ chồng lấn; normalize_posts() làm sạch hashtag (luôn có #Shorts cho YouTube); generate_posts() viết lại caption chỉ từ chữ (không gửi video); gemini_error_message() dịch lỗi Gemini sang tiếng Việt.
+app/fashion.py    👗 generate_tryon() (Gemini tạo ảnh, `GEMINI_IMAGE_MODEL`, ảnh 9:16), render_product_video() ([ảnh mặc thử] → video nhảy (+ảnh sản phẩm nhỏ ở góc) → [ảnh mặc thử], nối bằng concat, mỗi đoạn chuẩn hoá yuv420p/30fps; video nhảy ngắn thì `-stream_loop`), generate_posts() (Gemini + Google Search grounding – không dùng được JSON schema cùng search nên parse JSON từ chữ bằng parse_json_block()), POSTING_WINDOWS/next_slots()/reminder_ics().
+app/fashion_api.py APIRouter `/api/fashion`: dự án ở `data/fashion/<id>/project.json` (giữ `FASHION_TTL_HOURS`, mặc định 168), upload (`kind` = clothes|model|dance; ảnh chuẩn hoá PNG ≤1600px), tryon (bắt buộc `consent`), render (nhiều thời lượng, dùng chung semaphore xuất video với mục 1), posts, slots, reminder.ics, file/{name} (chặn đọc ngoài thư mục và project.json). Tác vụ nền riêng `run_task()`; giao diện hỏi trạng thái qua `fPoll()` với bảng `F_AREAS`.
 app/styles.py     Danh sách phong cách bình luận (label, prompt, tốc độ đọc Edge).
 app/tts.py        ElevenLabs (REST qua httpx) và Edge TTS; provider "_test" cho kiểm thử. Bộ nhớ đệm giọng `synthesize_cached()` (khoá = provider+voice+model+tốc độ+chữ) ở `data/tts_cache/`, dùng chung cho nghe thử (`POST /api/tts-preview`) và xuất video – nghe thử rồi xuất không tốn ElevenLabs hai lần. Giữ tốc độ đọc giống nhau ở hai chỗ (`edge_rate(style)`) để trúng cache.
 app/render.py     Toàn bộ khâu dựng video bằng ffmpeg.
