@@ -4,6 +4,9 @@ Bộ công cụ làm video TikTok bằng AI, gồm 2 mục trong menu:
 
 - **🎙️ Bình luận Highlight Game** – lồng tiếng bình luận cho video highlight Liên Quân (bên dưới).
 - **👗 Video Thời Trang** – ảnh quần áo + ảnh người mẫu + video nhảy → AI mặc thử, video sản phẩm không chữ 3/10/30 giây, caption, hashtag, trend và giờ đăng (xem phần [Video Thời Trang](#-video-thời-trang)).
+- **✍️ Content AI** – kịch bản phim ngắn đang hot (anh hùng cứu mỹ nhân, giúp người già bị bắt nạt, gặp người nổi tiếng – nhân vật hư cấu…), kiểm tra & tối ưu caption/kịch bản, lịch đăng 7–30 ngày (xem phần [Content AI](#️-content-ai)).
+
+Các mục nằm ở **thanh sidebar bên trái** (trên điện thoại bấm nút ☰).
 
 ---
 
@@ -122,6 +125,16 @@ Lưu ý:
 - Chỉ dùng ảnh/video người mẫu đã đồng ý; trend chỉ là gợi ý, nên kiểm tra lại trên TikTok.
 - Dự án thời trang được giữ 7 ngày (`FASHION_TTL_HOURS`).
 
+## ✍️ Content AI
+
+Mở mục **✍️ Content AI** (hoặc `http://localhost:8000/#content`):
+
+1. **💡 Ý tưởng & kịch bản**: chọn thể loại (Anh hùng cứu mỹ nhân, Giúp người già bị bắt nạt, Gặp người nổi tiếng trong ngành, Lật kèo đổi đời, Tình cảm có twist, Review kể chuyện, hoặc tự nhập), chủ đề kênh, thời lượng → AI (có tìm kiếm Google để xem trend) viết 1–5 kịch bản: câu mở đầu 3 giây, twist riêng, nhân vật, **từng cảnh** (hình ảnh, lời thoại, chữ trên màn hình, **prompt tiếng Anh cho công cụ tạo video AI**), caption, hashtag, lưu ý. Bấm 📋 để copy.
+2. **🩺 Kiểm tra & tối ưu**: dán caption/kịch bản → app **báo ngay** các từ dễ bị TikTok hạn chế (khẳng định tuyệt đối, cam kết, chữa bệnh, kéo sang Zalo/Facebook/Shopee, số điện thoại, link…) mà không cần AI; bấm **AI chấm điểm** để có điểm câu mở đầu/độ mới/cảm xúc/an toàn, danh sách lỗi cần sửa, 2–3 bản viết lại, câu mở đầu mạnh hơn, hashtag.
+3. **📅 Lịch đăng bài**: AI lập lịch 7/14/30 ngày, 1–3 video/ngày, xen kẽ thể loại; tải **một file lịch** nhắc trước 30 phút cho mọi video; bấm **💡 Viết kịch bản** ở từng dòng để viết kịch bản cho video đó.
+
+Để kênh an toàn, AI luôn được dặn: **chỉ dùng nhân vật hư cấu** (không dùng người nổi tiếng/người thật – video AI giả người thật dễ bị gỡ, khoá kênh và vi phạm quyền hình ảnh), cảnh hành động **không máu me**, mỗi kịch bản có **twist riêng** để không nhàm, và nhắc **bật nhãn “Nội dung do AI tạo”** khi đăng. Danh sách từ dễ bị hạn chế là kinh nghiệm chung, không phải danh sách chính thức của TikTok. App chưa tự tạo video từ kịch bản (các công cụ tạo video AI đều trả phí) – hãy dán prompt từng cảnh vào công cụ bạn dùng.
+
 ## Cách dùng (Bình luận Highlight Game)
 
 1. Kéo thả video highlight vào trang.
@@ -150,6 +163,8 @@ app/
   render.py     Ghép giọng, giảm tiếng game, phụ đề, khung 9:16/16:9 nền mờ
   fashion.py    👗 AI mặc thử, dựng video sản phẩm, caption/trend, nhắc giờ đăng
   fashion_api.py API của mục Video Thời Trang (/api/fashion/...)
+  content.py    ✍️ kịch bản phim ngắn, kiểm tra/tối ưu content, lịch đăng
+  content_api.py API của mục Content AI (/api/content/...)
   media.py      Hàm tiện ích ffmpeg/ffprobe, tự chọn card đồ hoạ để xuất video
 static/
   index.html    Giao diện web

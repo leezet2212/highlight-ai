@@ -167,6 +167,32 @@
   .badge { font-size: 12px; background: #3a2a10; color: #ffd28a; border-radius: 99px; padding: 2px 8px; margin-left: 6px; }
   .consent { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; color: var(--text); font-size: 14px; }
   .consent input { margin-top: 3px; width: 20px; height: 20px; flex: none; }
+  /* content AI */
+  .idea { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #141720; margin-top: 12px; }
+  .idea h3 { margin: 0 0 6px; font-size: 16px; }
+  .idea .kv { font-size: 14px; margin: 4px 0; }
+  .idea .kv b { color: var(--accent); }
+  .scene { border-left: 3px solid var(--line); padding: 6px 0 6px 10px; margin: 8px 0; font-size: 14px; }
+  .scene .t { font-weight: 700; color: var(--accent); }
+  .scene .p { background: #0f1218; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-top: 4px;
+              font-size: 12px; color: #b9c0d0; display: flex; gap: 8px; align-items: flex-start; }
+  .scene .p span { flex: 1; min-width: 0; word-break: break-word; }
+  .note { background: #3a2a10; border: 1px solid #6b4a12; color: #ffd28a; border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-top: 8px; }
+  .flag { display: inline-flex; gap: 6px; align-items: center; background: #3a1218; border: 1px solid #7a2531; color: #ffb3bc;
+          border-radius: 99px; padding: 3px 10px; font-size: 13px; margin: 3px; }
+  .scores { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+  .score { background: #141720; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+  .score .bar { height: 6px; background: #262a36; border-radius: 99px; overflow: hidden; margin-top: 6px; }
+  .score .bar div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .big-score { font-size: 32px; font-weight: 800; color: var(--accent); }
+  table.plan { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+  table.plan td, table.plan th { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+  table.plan th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  @media (max-width: 620px) {
+    table.plan thead { display: none; }
+    table.plan tr { display: block; border-bottom: 1px solid var(--line); padding: 8px 0; }
+    table.plan td { display: block; border: 0; padding: 2px 0; }
+  }
 
   /* ------------------------------------------------------------ responsive */
   /* Grid/flex children default to min-width:auto, so one long <select> option
@@ -245,6 +271,7 @@
   <nav class="side-nav" id="toolNav">
     <a href="#highlight" data-tool="highlight"><span class="ico">🎙️</span><span><b>Bình luận Highlight Game</b><small>Lồng tiếng video Liên Quân</small></span></a>
     <a href="#fashion" data-tool="fashion"><span class="ico">👗</span><span><b>Video Thời Trang</b><small>Mặc thử, video sản phẩm, trend</small></span></a>
+    <a href="#content" data-tool="content"><span class="ico">✍️</span><span><b>Content AI</b><small>Kịch bản phim ngắn, tối ưu, lịch đăng</small></span></a>
   </nav>
   <div class="side-foot">Chạy trên máy của bạn<br><a href="https://github.com/leezet2212/highlight-ai" target="_blank" rel="noopener">Mã nguồn trên GitHub</a></div>
 </aside>
@@ -580,6 +607,69 @@
       <div class="muted">Thói quen chung của người xem TikTok ở Việt Nam – nên thử và xem số liệu trong TikTok Analytics của bạn.</div>
       <div id="fSlots"></div>
     </div>
+  </section>
+</main>
+
+<main id="tool-content" class="hidden">
+  <div id="cKeyWarn" class="warn hidden"></div>
+
+  <!-- C1. Ideas & scripts -->
+  <section class="card" id="cIdeasCard">
+    <h2><span class="num">1</span> 💡 Ý tưởng &amp; kịch bản phim ngắn</h2>
+    <label>Thể loại</label>
+    <div class="chips" id="cFormats"></div>
+    <div class="row" style="margin-top:12px">
+      <div><label for="cTopic">Chủ đề / lĩnh vực kênh</label>
+        <input type="text" id="cTopic" placeholder="VD: shipper tốt bụng ở Sài Gòn; quán phở gia truyền; nghề nail"></div>
+      <div style="flex:0 0 150px"><label for="cSeconds">Thời lượng</label>
+        <select id="cSeconds"><option value="15">15 giây</option><option value="30">30 giây</option><option value="60" selected>60 giây</option><option value="90">90 giây</option></select></div>
+      <div style="flex:0 0 140px"><label for="cCount">Số kịch bản</label>
+        <select id="cCount"><option>1</option><option>2</option><option selected>3</option><option>5</option></select></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><label for="cTone">Giọng điệu (không bắt buộc)</label><input type="text" id="cTone" placeholder="VD: cảm động, hài hước, kịch tính có hậu"></div>
+      <div style="flex:0 0 auto"><button class="primary" id="cBtnIdeas">💡 AI viết kịch bản</button></div>
+    </div>
+    <div class="note">🛡️ AI chỉ dùng <b>nhân vật hư cấu</b> (không dùng người nổi tiếng có thật), cảnh hành động không máu me, và nhắc bạn bật nhãn <b>“Nội dung do AI tạo”</b> trên TikTok – để video không bị gỡ hay bóp tương tác.</div>
+    <div id="cIdeasState" class="muted hidden" style="margin-top:10px"></div>
+    <div id="cIdeasErr" class="error hidden" style="margin-top:10px"></div>
+    <div id="cIdeas"></div>
+  </section>
+
+  <!-- C2. Check & optimise -->
+  <section class="card" id="cCheckCard">
+    <h2><span class="num">2</span> 🩺 Kiểm tra &amp; tối ưu content</h2>
+    <label for="cText">Dán caption hoặc kịch bản</label>
+    <textarea id="cText" rows="6" placeholder="Dán caption / kịch bản vào đây..."></textarea>
+    <div id="cQuick" style="margin-top:6px"></div>
+    <div class="row" style="margin-top:8px">
+      <label class="switch"><input type="radio" name="cKind" value="caption" checked> Caption</label>
+      <label class="switch"><input type="radio" name="cKind" value="script"> Kịch bản video</label>
+      <label class="switch"><input type="checkbox" id="cAiMade"> Video có dùng AI / dàn dựng</label>
+    </div>
+    <div style="margin-top:10px"><button class="primary" id="cBtnCheck">🩺 AI chấm điểm &amp; viết lại</button></div>
+    <div id="cCheckState" class="muted hidden" style="margin-top:10px"></div>
+    <div id="cCheckErr" class="error hidden" style="margin-top:10px"></div>
+    <div id="cCheck"></div>
+  </section>
+
+  <!-- C3. Calendar -->
+  <section class="card" id="cPlanCard">
+    <h2><span class="num">3</span> 📅 Lịch đăng bài</h2>
+    <div class="row">
+      <div><label for="cPlanTopic">Chủ đề kênh</label><input type="text" id="cPlanTopic" placeholder="VD: phim ngắn đời thường, tình cảm, có hậu"></div>
+      <div style="flex:0 0 130px"><label for="cDays">Số ngày</label>
+        <select id="cDays"><option value="7">7 ngày</option><option value="14">14 ngày</option><option value="30">30 ngày</option></select></div>
+      <div style="flex:0 0 140px"><label for="cPerDay">Video/ngày</label>
+        <select id="cPerDay"><option value="1">1 video</option><option value="2">2 video</option><option value="3">3 video</option></select></div>
+      <div style="flex:0 0 170px"><label for="cStart">Bắt đầu</label><input type="date" id="cStart"></div>
+    </div>
+    <label style="margin-top:10px">Thể loại muốn xen kẽ</label>
+    <div class="chips" id="cPlanFormats"></div>
+    <div style="margin-top:10px"><button class="primary" id="cBtnPlan">📅 AI lập lịch</button></div>
+    <div id="cPlanState" class="muted hidden" style="margin-top:10px"></div>
+    <div id="cPlanErr" class="error hidden" style="margin-top:10px"></div>
+    <div id="cPlan"></div>
   </section>
 </main>
 </div><!-- .content -->
@@ -1191,8 +1281,9 @@ async function pollSample(id) {
 const TOOLS = {
   highlight: "Tải video highlight lên → AI xem trận và viết lời bình → chỉnh sửa → xuất video có giọng đọc và phụ đề cho TikTok, Facebook, YouTube.",
   fashion: "Ảnh quần áo + ảnh người mẫu + video nhảy → AI mặc thử, video sản phẩm 3/10/30 giây (không chữ), caption, hashtag, trend và giờ đăng TikTok.",
+  content: "Ý tưởng & kịch bản phim ngắn đang hot (từng cảnh, kèm prompt tạo video AI), kiểm tra & tối ưu caption/kịch bản, lịch đăng 7–30 ngày.",
 };
-const TOOL_TITLES = { highlight: "🎙️ Bình luận Highlight Game", fashion: "👗 Video Thời Trang" };
+const TOOL_TITLES = { highlight: "🎙️ Bình luận Highlight Game", fashion: "👗 Video Thời Trang", content: "✍️ Content AI" };
 function showTool() {
   const want = (location.hash || "#highlight").slice(1);
   const tool = want in TOOLS ? want : "highlight";
@@ -1206,6 +1297,7 @@ function showTool() {
   document.title = `${TOOL_TITLES[tool].replace(/^\S+\s/, "")} – TikTok Studio AI`;
   setSidebar(false);
   if (tool === "fashion") fashionOpen();
+  if (tool === "content") contentOpen();
 }
 window.addEventListener("hashchange", showTool);
 
@@ -1417,6 +1509,160 @@ async function fRenderSlots() {
       <a class="btn" href="/api/fashion/${fp.id}/reminder.ics?at=${encodeURIComponent(s.at)}&caption=${encodeURIComponent(cap)}"><button class="small">📅 Nhắc tôi</button></a></div>`;
   }).join("");
 }
+
+// ================================================================ ✍️ content AI
+let cStarted = false, cFormats = {}, cState = { ideas: null, check: null, plan: null };
+const SCORE_LABELS = { hook: "Câu mở đầu", originality: "Độ mới lạ", emotion: "Cảm xúc", clarity: "Dễ hiểu", cta: "Kêu gọi hành động", safety: "An toàn" };
+const ISSUE_LABELS = { tu_cam: "Từ dễ bị hạn chế", gay_hieu_lam: "Gây hiểu lầm", nguoi_that: "Dùng người thật", bao_luc: "Bạo lực",
+                       ban_quyen: "Bản quyền", nhan_ai: "Nhãn AI", nham_chan: "Nhàm chán", khac: "Khác" };
+
+async function contentOpen() {
+  if (cStarted) return;
+  cStarted = true;
+  if (!cfg.gemini) { $("cKeyWarn").innerHTML = "⚠️ Chưa có <b>GEMINI_API_KEY</b> → chưa dùng được AI (phần báo từ dễ bị hạn chế vẫn chạy). Điền key vào file <code>.env</code> rồi khởi động lại ứng dụng."; show("cKeyWarn"); }
+  cFormats = await api("/api/content/formats").catch(() => ({}));
+  $("cFormats").innerHTML = Object.entries(cFormats).map(([k, v], i) =>
+    `<label class="chip"><input type="radio" name="cFormat" value="${k}" ${i === 0 ? "checked" : ""}><b>${escapeHtml(v)}</b></label>`).join("");
+  $("cPlanFormats").innerHTML = Object.entries(cFormats).filter(([k]) => k !== "custom").map(([k, v], i) =>
+    `<label class="chip"><input type="checkbox" value="${k}" ${i < 4 ? "checked" : ""}><b>${escapeHtml(v)}</b></label>`).join("");
+  const t = new Date(); t.setDate(t.getDate() + 1);
+  $("cStart").value = t.toISOString().slice(0, 10);
+  try { cState = { ...cState, ...JSON.parse(localStorage.getItem("contentState") || "{}") }; } catch {}
+  if (cState.ideas) renderIdeas(cState.ideas);
+  if (cState.check) renderCheck(cState.check);
+  if (cState.plan) renderPlan(cState.plan);
+}
+const cSave = () => localSet("contentState", JSON.stringify(cState));
+
+async function cRun(btn, stateBox, errBox, path, body, msg) {
+  err(errBox);
+  if (!cfg.gemini) return err(errBox, "Cần điền GEMINI_API_KEY vào file .env (lấy miễn phí tại aistudio.google.com) rồi khởi động lại ứng dụng.");
+  $(btn).disabled = true; show(stateBox); $(stateBox).innerHTML = `<span class="spinner"></span>${msg}`;
+  try { return await api(path, { method: "POST", body: JSON.stringify(body) }); }
+  catch (e) { err(errBox, e.message); return null; }
+  finally { $(btn).disabled = false; show(stateBox, false); }
+}
+
+// ---- 1. ideas
+$("cBtnIdeas").onclick = async () => {
+  const format = document.querySelector("input[name=cFormat]:checked")?.value || "anh_hung";
+  const d = await cRun("cBtnIdeas", "cIdeasState", "cIdeasErr", "/api/content/ideas",
+    { format, topic: $("cTopic").value, seconds: +$("cSeconds").value, tone: $("cTone").value, count: +$("cCount").value },
+    "AI đang xem trend và viết kịch bản (khoảng 20–60 giây)...");
+  if (d) { cState.ideas = d; cSave(); renderIdeas(d); }
+};
+
+function ideaText(it) {
+  return [`🎬 ${it.title}`, `Mở đầu: ${it.hook}`, it.twist && `Twist: ${it.twist}`,
+    it.characters.length && `Nhân vật: ${it.characters.join("; ")}`, "",
+    ...it.scenes.map(s => `[${s.time}] ${s.visual}${s.dialogue ? `\n  Thoại: ${s.dialogue}` : ""}${s.on_screen_text ? `\n  Chữ: ${s.on_screen_text}` : ""}\n  Prompt AI: ${s.ai_prompt}`),
+    "", `Caption: ${it.caption}`, it.hashtags.join(" ")].filter(x => x !== 0 && x !== false && x != null).join("\n");
+}
+
+function renderIdeas(d) {
+  $("cIdeas").innerHTML = (d.trend_note ? `<div class="summary" style="margin-top:12px">🔥 ${escapeHtml(d.trend_note)}</div>` : "") +
+    d.ideas.map((it, i) => `<div class="idea">
+      <h3>${i + 1}. ${escapeHtml(it.title)}</h3>
+      <div class="kv"><b>⚡ 3 giây đầu:</b> ${escapeHtml(it.hook)}</div>
+      ${it.twist ? `<div class="kv"><b>🔄 Twist:</b> ${escapeHtml(it.twist)}</div>` : ""}
+      ${it.characters.length ? `<div class="kv"><b>👥 Nhân vật:</b> ${it.characters.map(escapeHtml).join(" · ")}</div>` : ""}
+      ${it.scenes.map(s => `<div class="scene"><span class="t">${escapeHtml(s.time)}</span> ${escapeHtml(s.visual)}
+        ${s.dialogue ? `<div>🗣️ ${escapeHtml(s.dialogue)}</div>` : ""}
+        ${s.on_screen_text ? `<div>🔤 ${escapeHtml(s.on_screen_text)}</div>` : ""}
+        ${s.ai_prompt ? `<div class="p"><span>🎥 ${escapeHtml(s.ai_prompt)}</span><button class="small" data-ccopy="${escapeHtml(s.ai_prompt)}">📋</button></div>` : ""}</div>`).join("")}
+      <div class="kv" style="margin-top:8px"><b>✍️ Caption:</b> ${escapeHtml(it.caption)}</div>
+      <div class="tags" style="margin-top:6px">${it.hashtags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>
+      ${it.notes.length ? `<div class="note">${it.notes.map(n => "⚠️ " + escapeHtml(n)).join("<br>")}</div>` : ""}
+      <div class="actions" style="margin-top:10px">
+        <button class="small primary" data-ccopy="${escapeHtml(ideaText(it))}">📋 Copy cả kịch bản</button>
+        <button class="small" data-ccopy="${escapeHtml(it.caption + "\n\n" + it.hashtags.join(" "))}">📋 Copy caption</button>
+        <button class="small" data-ccheck="${i}">🩺 Kiểm tra kịch bản này</button>
+      </div></div>`).join("");
+}
+
+// ---- 2. check
+let cQuickTimer = null;
+$("cText").addEventListener("input", () => {
+  clearTimeout(cQuickTimer);
+  cQuickTimer = setTimeout(async () => {
+    const text = $("cText").value;
+    if (!text.trim()) { $("cQuick").innerHTML = ""; return; }
+    const d = await api("/api/content/quick-check", { method: "POST", body: JSON.stringify({ text }) }).catch(() => null);
+    if (d) renderQuick(d.quick);
+  }, 400);
+});
+function renderQuick(q) {
+  $("cQuick").innerHTML = q.length
+    ? `<div class="muted" style="margin-bottom:4px">⚠️ Từ có thể bị TikTok hạn chế (kiểm tra nhanh, không cần AI):</div>` +
+      q.map(f => `<span class="flag" title="${escapeHtml(f.why)}">${escapeHtml(f.word)}</span>`).join("") +
+      `<div class="muted" style="margin-top:4px">${q.map(f => `<b>${escapeHtml(f.word)}</b>: ${escapeHtml(f.why)}`).join("<br>")}</div>`
+    : `<div class="muted">✅ Không thấy từ dễ bị hạn chế.</div>`;
+}
+$("cBtnCheck").onclick = async () => {
+  const text = $("cText").value;
+  if (!text.trim()) return err("cCheckErr", "Hãy dán caption hoặc kịch bản cần kiểm tra.");
+  const d = await cRun("cBtnCheck", "cCheckState", "cCheckErr", "/api/content/check",
+    { text, kind: document.querySelector("input[name=cKind]:checked").value, ai_made: $("cAiMade").checked },
+    "AI đang chấm điểm và viết lại...");
+  if (d) { cState.check = d; cSave(); renderCheck(d); }
+};
+function renderCheck(d) {
+  renderQuick(d.quick || []);
+  $("cCheck").innerHTML = `
+    <div class="row" style="align-items:center;margin-top:12px"><div style="flex:0 0 auto"><span class="big-score">${d.overall}</span><span class="muted"> / 10</span></div>
+      <div class="muted">${escapeHtml(d.summary)}</div></div>
+    <div class="scores">${Object.entries(d.scores).map(([k, v]) => `<div class="score">${SCORE_LABELS[k] || k}: <b>${v}</b>/10<div class="bar"><div style="width:${v * 10}%"></div></div></div>`).join("")}</div>
+    ${d.needs_ai_label ? `<div class="note">🏷️ Khi đăng, bật nút <b>“Nội dung do AI tạo”</b> trong phần cài đặt của bài đăng trên TikTok – video AI/dàn dựng không gắn nhãn dễ bị gỡ hoặc giảm đề xuất.</div>` : ""}
+    ${d.issues.length ? `<div class="section-title" style="margin-top:12px">🚩 Vấn đề cần sửa</div>` + d.issues.map(i => `<div class="cap"><div><b>${escapeHtml(ISSUE_LABELS[i.type] || i.type)}</b>${i.text ? `: “${escapeHtml(i.text)}”` : ""}<div class="muted">${escapeHtml(i.why)}</div><div>👉 ${escapeHtml(i.fix)}</div></div></div>`).join("") : ""}
+    ${d.rewrites.length ? `<div class="section-title" style="margin-top:12px">✨ Phiên bản viết lại</div>` + d.rewrites.map(r => `<div class="cap"><div style="white-space:pre-wrap">${escapeHtml(r)}</div><button class="small" data-ccopy="${escapeHtml(r + (d.hashtags.length ? "\n\n" + d.hashtags.join(" ") : ""))}">📋 Copy</button></div>`).join("") : ""}
+    ${d.hook_ideas.length ? `<div class="section-title" style="margin-top:12px">⚡ Câu mở đầu mạnh hơn</div>` + d.hook_ideas.map(h => `<div class="cap"><div>${escapeHtml(h)}</div><button class="small" data-ccopy="${escapeHtml(h)}">📋</button></div>`).join("") : ""}
+    ${d.hashtags.length ? `<div class="section-title" style="margin-top:12px"># Hashtag <button class="small" data-ccopy="${escapeHtml(d.hashtags.join(" "))}">📋 Copy</button></div><div class="tags">${d.hashtags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>` : ""}`;
+}
+
+// ---- 3. plan
+$("cBtnPlan").onclick = async () => {
+  const formats = [...document.querySelectorAll("#cPlanFormats input:checked")].map(i => i.value);
+  const d = await cRun("cBtnPlan", "cPlanState", "cPlanErr", "/api/content/plan",
+    { topic: $("cPlanTopic").value, formats, days: +$("cDays").value, per_day: +$("cPerDay").value, start: $("cStart").value },
+    "AI đang lập lịch đăng bài...");
+  if (d) { cState.plan = d; cSave(); renderPlan(d); }
+};
+function renderPlan(d) {
+  $("cPlan").innerHTML = `
+    <div class="actions" style="margin-top:12px"><button class="primary small" id="cBtnIcs">📅 Tải lịch nhắc cho cả ${d.items.length} video (.ics)</button></div>
+    <table class="plan"><thead><tr><th>Ngày</th><th>Giờ</th><th>Thể loại</th><th>Video</th><th></th></tr></thead><tbody>
+    ${d.items.map((it, i) => { const dt = new Date(it.at); return `<tr>
+      <td><b>${dt.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" })}</b></td>
+      <td>${dt.toTimeString().slice(0, 5)}</td><td class="muted">${escapeHtml(it.format)}</td>
+      <td><b>${escapeHtml(it.title)}</b><div class="muted">⚡ ${escapeHtml(it.hook)}${it.goal ? ` · 🎯 ${escapeHtml(it.goal)}` : ""}</div></td>
+      <td><button class="small" data-cwrite="${i}">💡 Viết kịch bản</button></td></tr>`; }).join("")}
+    </tbody></table>`;
+  $("cBtnIcs").onclick = async () => {
+    const r = await fetch("/api/content/plan.ics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: d.items }) });
+    if (!r.ok) return err("cPlanErr", "Không tạo được file lịch.");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = "lich-dang-tiktok.ics"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+}
+
+$("tool-content").addEventListener("click", (e) => {
+  const t = e.target;
+  if (t.dataset.ccopy !== undefined) copyText(t.dataset.ccopy, t);
+  if (t.dataset.ccheck !== undefined && cState.ideas) {
+    $("cText").value = ideaText(cState.ideas.ideas[+t.dataset.ccheck]);
+    document.querySelector("input[name=cKind][value=script]").checked = true;
+    $("cAiMade").checked = true;
+    $("cText").dispatchEvent(new Event("input"));
+    $("cCheckCard").scrollIntoView({ behavior: "smooth" });
+  }
+  if (t.dataset.cwrite !== undefined && cState.plan) {
+    const it = cState.plan.items[+t.dataset.cwrite];
+    $("cTopic").value = it.title;
+    const match = Object.entries(cFormats).find(([, v]) => v === it.format);
+    document.querySelector(`input[name=cFormat][value="${match ? match[0] : "custom"}"]`).checked = true;
+    $("cIdeasCard").scrollIntoView({ behavior: "smooth" });
+  }
+});
 
 init().finally(showTool);
 </script>

@@ -441,3 +441,54 @@ def wait_fashion(c, pid, timeout=60):
             return p
         time.sleep(0.2)
     raise AssertionError("fashion task did not finish")
+
+
+# --------------------------------------------------------------- ✍️ content AI
+
+def test_quick_check_flags_risky_words():
+    from app import content
+    words = [f["word"] for f in content.quick_check("Váy rẻ nhất, cam kết 100%! Inbox zalo 0912 345 678, xem www.abc.vn")]
+    assert {"rẻ nhất", "cam kết", "100%", "inbox", "zalo", "số điện thoại", "đường link"} <= set(words)
+    assert content.quick_check("Bạn chọn màu nào? Xem tới cuối nha 😍") == []
+    assert content.quick_check("ibuprofen") == []                    # "ib" only as a whole word
+
+
+def test_content_api_with_fake_ai(client, monkeypatch):
+    c, _ = client
+    from app import content
+    calls = []
+
+    def fake_call(contents, search=False, temperature=1.0):
+        calls.append((contents, search))
+        if "biên kịch" in contents:
+            return {"trend_note": "Đang hot", "ideas": [
+                {"title": "Shipper cứu cô gái", "hook": "Tiếng hét giữa đêm", "twist": "Cô gái là sếp mới",
+                 "characters": ["Anh shipper"], "hashtags": ["phimngan", "#phimngan", "fyp"], "notes": ["Bật nhãn AI"],
+                 "scenes": [{"time": "0-3s", "visual": "Ngõ tối", "ai_prompt": "night alley, vertical 9:16"}]},
+                {"title": "Không có cảnh", "scenes": []}]}
+        if "chuyên gia tối ưu" in contents:
+            return {"scores": {"hook": 12, "originality": "4", "emotion": None}, "summary": "Ổn",
+                    "issues": [{"type": "tu_cam", "text": "rẻ nhất", "why": "tuyệt đối", "fix": "giá tốt"}],
+                    "rewrites": ["Bản mới"], "hook_ideas": ["Mở đầu mới"], "hashtags": ["xuhuong"]}
+        return {"items": [{"day": 2, "time": "19:30", "format": "Anh hùng", "title": "Tập 2", "hook": "h"},
+                          {"day": 1, "time": "sai giờ", "title": "Tập 1"}, {"day": "x"}]}
+    monkeypatch.setattr(content, "_call", fake_call)
+
+    assert "anh_hung" in c.get("/api/content/formats").json()
+    r = c.post("/api/content/ideas", json={"format": "gap_nguoi_noi_tieng", "topic": "ca sĩ", "count": 2})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert len(d["ideas"]) == 1 and d["ideas"][0]["hashtags"] == ["#phimngan", "#fyp"]   # empty idea dropped
+    prompt, used_search = calls[-1]
+    assert used_search and "nhân vật HƯ CẤU" in prompt and "nhãn" in prompt         # guardrails always sent
+    assert c.post("/api/content/ideas", json={"format": "custom", "topic": " "}).status_code == 400
+
+    d = c.post("/api/content/check", json={"text": "Váy rẻ nhất", "ai_made": True}).json()
+    assert d["scores"]["hook"] == 10 and d["scores"]["originality"] == 4 and d["scores"]["emotion"] == 0
+    assert d["needs_ai_label"] is True and d["quick"][0]["word"] == "rẻ nhất"
+    assert c.post("/api/content/check", json={"text": "  "}).status_code == 400
+
+    d = c.post("/api/content/plan", json={"days": 7, "per_day": 1, "start": "2026-12-01", "formats": ["anh_hung"]}).json()
+    assert [i["at"] for i in d["items"]] == ["2026-12-01T19:30", "2026-12-02T19:30"]   # sorted, bad time → 19:30
+    r = c.post("/api/content/plan.ics", json={"items": d["items"]})
+    assert r.status_code == 200 and r.text.count("BEGIN:VEVENT") == 2 and "DTSTART:20261202T193000" in r.text

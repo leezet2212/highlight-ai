@@ -503,4 +503,9 @@ from . import fashion_api  # noqa: E402
 fashion_api.init(DATA.parent, RENDER_SLOTS)
 app.include_router(fashion_api.router)
 
+# ✍️ Content AI (third tool).
+from . import content_api  # noqa: E402
+
+app.include_router(content_api.router)
+
 app.mount("/", StaticFiles(directory=ROOT / "static", html=True), name="static")
