@@ -13,7 +13,7 @@
   body { margin: 0; background: var(--bg); color: var(--text);
          font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   header { padding: 20px 16px 8px; max-width: 1100px; margin: 0 auto; }
-  header h1 { margin: 0; font-size: 24px; }
+  header h1 { margin: 0; font-size: 24px; min-width: 0; }
   header h1 span { background: linear-gradient(90deg, var(--accent), var(--accent2));
                    -webkit-background-clip: text; background-clip: text; color: transparent; }
   header p { margin: 4px 0 0; color: var(--muted); }
@@ -108,11 +108,36 @@
   .my-style textarea { margin-top: 8px; font-size: 13px; }
   .chip.learned { border-style: dashed; }
 
-  /* menu */
-  .tool-nav { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-  .tool-nav a { text-decoration: none; color: var(--text); background: var(--card); border: 1px solid var(--line);
-                padding: 10px 16px; border-radius: 99px; font-weight: 600; font-size: 15px; }
-  .tool-nav a.active { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #111; border-color: transparent; }
+  /* sidebar menu */
+  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 100vh; }
+  .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: #0b0d13; border-right: 1px solid var(--line);
+             padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; box-sizing: border-box; }
+  .brand { font-size: 20px; font-weight: 800; padding: 4px 8px; }
+  .brand span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .side-nav { display: flex; flex-direction: column; gap: 6px; }
+  .side-nav a { display: flex; gap: 12px; align-items: center; text-decoration: none; color: var(--text);
+                padding: 11px 12px; border-radius: 12px; border: 1px solid transparent; }
+  .side-nav a:hover { background: #161a24; }
+  .side-nav a.active { background: #221d12; border-color: var(--accent); }
+  .side-nav a.active b { color: var(--accent); }
+  .side-nav .ico { font-size: 22px; width: 32px; text-align: center; flex: none; }
+  .side-nav b { display: block; font-size: 15px; }
+  .side-nav small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .side-foot { margin-top: auto; color: var(--muted); font-size: 12px; padding: 0 8px; line-height: 1.6; }
+  .side-foot a { color: var(--muted); }
+  .head-row { display: flex; gap: 10px; align-items: center; }
+  .menu-btn { display: none; font-size: 20px; padding: 6px 12px; flex: none; }
+  .side-backdrop { display: none; }
+  .content { min-width: 0; }
+  /* Narrow screens: the sidebar becomes a drawer opened with ☰. */
+  @media (max-width: 900px) {
+    .layout { display: block; }
+    .menu-btn { display: inline-block; }
+    .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: min(290px, 84vw); height: auto; z-index: 50;
+               transform: translateX(-100%); transition: transform .2s ease; box-shadow: 0 0 40px rgba(0,0,0,.5); }
+    .sidebar.open { transform: none; }
+    .side-backdrop.open { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
+  }
   /* fashion tool */
   .asset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   @media (max-width: 820px) { .asset-grid { grid-template-columns: 1fr; } }
@@ -214,12 +239,22 @@
 </style>
 </head>
 <body>
-<header>
-  <h1>🎬 <span>TikTok Studio AI</span></h1>
-  <nav class="tool-nav" id="toolNav">
-    <a href="#highlight" data-tool="highlight">🎙️ Bình luận Highlight Game</a>
-    <a href="#fashion" data-tool="fashion">👗 Video Thời Trang</a>
+<div class="layout">
+<aside class="sidebar" id="sidebar" aria-label="Menu">
+  <div class="brand">🎬 <span>TikTok Studio AI</span></div>
+  <nav class="side-nav" id="toolNav">
+    <a href="#highlight" data-tool="highlight"><span class="ico">🎙️</span><span><b>Bình luận Highlight Game</b><small>Lồng tiếng video Liên Quân</small></span></a>
+    <a href="#fashion" data-tool="fashion"><span class="ico">👗</span><span><b>Video Thời Trang</b><small>Mặc thử, video sản phẩm, trend</small></span></a>
   </nav>
+  <div class="side-foot">Chạy trên máy của bạn<br><a href="https://github.com/leezet2212/highlight-ai" target="_blank" rel="noopener">Mã nguồn trên GitHub</a></div>
+</aside>
+<div class="side-backdrop" id="sideBackdrop"></div>
+<div class="content">
+<header>
+  <div class="head-row">
+    <button class="menu-btn" id="btnMenu" aria-label="Mở menu" aria-controls="sidebar" aria-expanded="false">☰</button>
+    <h1 id="toolTitle"></h1>
+  </div>
   <p id="toolDesc"></p>
 </header>
 
@@ -547,6 +582,8 @@
     </div>
   </section>
 </main>
+</div><!-- .content -->
+</div><!-- .layout -->
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -1155,14 +1192,33 @@ const TOOLS = {
   highlight: "Tải video highlight lên → AI xem trận và viết lời bình → chỉnh sửa → xuất video có giọng đọc và phụ đề cho TikTok, Facebook, YouTube.",
   fashion: "Ảnh quần áo + ảnh người mẫu + video nhảy → AI mặc thử, video sản phẩm 3/10/30 giây (không chữ), caption, hashtag, trend và giờ đăng TikTok.",
 };
+const TOOL_TITLES = { highlight: "🎙️ Bình luận Highlight Game", fashion: "👗 Video Thời Trang" };
 function showTool() {
-  const tool = (location.hash || "#highlight").slice(1) in TOOLS ? (location.hash || "#highlight").slice(1) : "highlight";
+  const want = (location.hash || "#highlight").slice(1);
+  const tool = want in TOOLS ? want : "highlight";
   Object.keys(TOOLS).forEach(t => show("tool-" + t, t === tool));
-  document.querySelectorAll("#toolNav a").forEach(a => a.classList.toggle("active", a.dataset.tool === tool));
+  document.querySelectorAll("#toolNav a").forEach(a => {
+    a.classList.toggle("active", a.dataset.tool === tool);
+    if (a.dataset.tool === tool) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+  $("toolTitle").textContent = TOOL_TITLES[tool];
   $("toolDesc").textContent = TOOLS[tool];
+  document.title = `${TOOL_TITLES[tool].replace(/^\S+\s/, "")} – TikTok Studio AI`;
+  setSidebar(false);
   if (tool === "fashion") fashionOpen();
 }
 window.addEventListener("hashchange", showTool);
+
+// Drawer on phones (on wide screens the sidebar is always visible).
+function setSidebar(open) {
+  $("sidebar").classList.toggle("open", open);
+  $("sideBackdrop").classList.toggle("open", open);
+  $("btnMenu").setAttribute("aria-expanded", String(open));
+}
+$("btnMenu").onclick = () => setSidebar(!$("sidebar").classList.contains("open"));
+$("sideBackdrop").onclick = () => setSidebar(false);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") setSidebar(false); });
+$("toolNav").addEventListener("click", () => setSidebar(false));
 
 // ================================================================ 👗 fashion tool
 let fp = null, fPollTimer = null, fStarted = false;

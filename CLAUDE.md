@@ -4,7 +4,7 @@ Hướng dẫn cho Claude (và người) khi đọc/sửa code trong repo này.
 
 ## Dự án
 
-**TikTok Studio AI** – web app làm video TikTok, menu 2 mục (đổi bằng hash `#highlight` / `#fashion`, hàm `showTool()` trong index.html; mỗi mục là một `<main id="tool-...">`):
+**TikTok Studio AI** – web app làm video TikTok, menu 2 mục ở **thanh sidebar bên trái** (`<aside id="sidebar">` + `#toolNav`; >900px luôn hiện, ≤900px thành ngăn kéo mở bằng nút ☰ `#btnMenu`, đóng khi chọn mục/bấm nền `#sideBackdrop`/phím Esc – `setSidebar()`). Đổi mục bằng hash `#highlight` / `#fashion`, hàm `showTool()` (đặt tiêu đề `#toolTitle` và `document.title`); mỗi mục là một `<main id="tool-...">` trong `.content`. Thêm mục mới: thêm vào `TOOLS`, `TOOL_TITLES`, một `<a data-tool>` trong `#toolNav` và một `<main id="tool-<tên>">`:
 1. **🎙️ Bình luận Highlight Game** (`#highlight`, mục gốc "Highlight AI"): tải video highlight Liên Quân → Gemini xem video và viết lời bình theo phong cách → người dùng sửa → xuất MP4 có giọng đọc + phụ đề.
 2. **👗 Video Thời Trang** (`#fashion`): ảnh quần áo (≤5) + ảnh người mẫu + video nhảy → AI mặc thử (ảnh), video sản phẩm 9:16 **không có chữ** (người dùng yêu cầu: họ tự gắn thẻ trên TikTok) với thời lượng 3/10/15/30 hoặc tự nhập 1–60 giây, caption/hashtag/nhạc/trend/giờ đăng, nhắc giờ đăng bằng file `.ics`. Tự động đăng TikTok chưa làm (cần TikTok for Developers duyệt app) – giao diện hiện lựa chọn "Sắp có".
 
